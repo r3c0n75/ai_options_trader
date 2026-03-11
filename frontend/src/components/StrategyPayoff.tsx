@@ -23,8 +23,11 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
   // Calculate P&L for a single price point
   const calculatePnL = (price: number) => {
     return legs.reduce((total: number, leg: StrategyLeg) => {
-      if (leg.type === 'STOCK') {
-        if (leg.side === 'BUY') {
+      const side = leg.side.toUpperCase();
+      const type = leg.type.toUpperCase();
+
+      if (type === 'STOCK') {
+        if (side === 'BUY') {
           return total + (price - leg.premium);
         } else {
           return total + (leg.premium - price);
@@ -32,13 +35,13 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
       }
 
       let pnl = 0;
-      if (leg.type === 'CALL') {
+      if (type === 'CALL') {
         pnl = Math.max(0, price - leg.strike);
-      } else {
+      } else if (type === 'PUT') {
         pnl = Math.max(0, leg.strike - price);
       }
 
-      if (leg.side === 'BUY') {
+      if (side === 'BUY') {
         return total + (pnl - leg.premium);
       } else {
         return total + (leg.premium - pnl);

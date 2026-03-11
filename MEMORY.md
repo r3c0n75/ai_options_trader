@@ -34,6 +34,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **Alpaca Portal "Internal" Errors**: Confirmed that errors like `Cannot read properties of undefined (reading 't')` appearing on the official Alpaca markets web portal are external frontend bugs (i18n related) and unrelated to our custom API integrations. 
 * **Order Button & Trade Logic**: Mitigated silent failures by implementing explicit error propagation from backend to frontend. Introduced strategy-based mapping (v1) to correctly map option strategy directional intent to stock order side (e.g., Put Credit Spreads proxy as 'buy' orders).
 * **Alpaca Option Tiers (Covered Calls)**: Confirmed that Paper Accounts are restricted from selling naked calls (Tier 4). To sell a Covered Call without owning the stock, it must be submitted as a single multi-leg "Buy-Write" order (100 shares + 1 Short Call). Our implementation now handles this detection and injection automatically in the backend.
+* **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity in the frontend `StrategyPayoff` component. Normalizing `side` and `type` to uppercase across the stack resolved this and ensured accurate profit/loss zone mapping.
 
 ## Next Steps
 * Implement advanced Greeks calculation via the Alpaca Options Beta.
