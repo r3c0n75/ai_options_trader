@@ -48,6 +48,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - Updated default models to **`gemini-3-flash-preview`** to leverage Tier 1 provisioned credits and throughput.
     - Implemented a "normalization chimney" and resolution cache in `ai_engine.py` to prevent 404s and redundant model metadata calls.
     - **Performance Injection**: The research sidecar now receives quantitative **3M and 12M trend data**, enabling contextual reasoning over price performance.
+    - **Response Engineering**: Implemented strict conciseness constraints (max 3-4 paragraphs) and high-density data formatting (bolding metrics) to prevent analytical bloat.
     - **ResourceExhausted (429) Resiliency**: Enhanced the fallback chain to rotate through Tier 1 preview models (Flash 3.0 -> Pro 3.1) with exponential backoff.
 
 ## Next Steps

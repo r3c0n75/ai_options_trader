@@ -112,7 +112,18 @@ def get_research_response(symbol: str, question: str, context: str, model_name: 
     if not model:
         return "Gemini API key not configured."
 
-    prompt = f"Topic: {symbol}\nContext: {context}\nQuestion: {question}"
+    prompt = (
+        f"You are a professional options trading research assistant. "
+        f"Provide a concise, data-driven answer based on the context.\n\n"
+        f"Topic: {symbol}\n"
+        f"Context (JSON): {context}\n"
+        f"User Question: {question}\n\n"
+        f"Instructions:\n"
+        f"1. Be extremely concise. Avoid filler.\n"
+        f"2. Focus on Price, News, Greeks, or Trend data.\n"
+        f"3. Max 3-4 short paragraphs.\n"
+        f"4. Use bolding for key levels."
+    )
 
     try:
         response = _generate_with_retry(model, prompt)

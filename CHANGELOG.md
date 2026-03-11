@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
     - Updated default models to `gemini-3-flash-preview` and `gemini-3.1-pro-preview` to leverage Tier 1 provisioned throughput and credits.
     - Implemented model normalization and persistent model caching in `ai_engine.py` to prevent redundant resolution calls.
     - Enhanced the fallback chain to prioritize Tier 1 preview models, significantly reducing 429 and 404 errors.
+- **AI Response Engineering**:
+    - Optimized the Research Assistant prompt to enforce extreme conciseness (max 3-4 paragraphs).
+    - Added explicit instructions to prioritize quantitative data (Price, Greeks, Trends) and use bolding for key metrics.
 
 ### Fixed
 - **Chart Layout & Date Axis**: Resolved a height conflict in the Symbol Analysis view where the date axis was being truncated. Refactored the chart container to use `min-h-[500px]` with dynamic flex-scaling.
