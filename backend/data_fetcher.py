@@ -3,6 +3,10 @@ import traceback
 import os
 import httpx
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from the root .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
@@ -149,7 +153,7 @@ def _yfinance_options_fallback(symbol: str, current_price: float):
         }
     except Exception:
         return None
-def get_macro_etfs() -> list:
+def get_macro_etfs() -> dict:
     """Fetches a snapshot of the core macro basket (prices and daily change)."""
     if not ALPACA_API_KEY:
         return _yfinance_macro_fallback()
@@ -185,13 +189,13 @@ def get_macro_etfs() -> list:
 
             order = {sym: index for index, sym in enumerate(MACRO_BASKET)}
             results.sort(key=lambda x: order.get(x['symbol'], 999))
-            return results
+            return {"feed": "Alpaca Markets", "data": results}
         return _yfinance_macro_fallback()
     except Exception as e:
         print(f"Error fetching ETF snapshots from Alpaca: {e}")
         return _yfinance_macro_fallback()
 
-def _yfinance_macro_fallback() -> list:
+def _yfinance_macro_fallback() -> dict:
     results = []
     for symbol in MACRO_BASKET:
         try:
@@ -214,7 +218,7 @@ def _yfinance_macro_fallback() -> list:
                 })
         except Exception as e:
             print(f"Error fetching ETF {symbol} from yfinance: {e}")
-    return results
+    return {"feed": "Yahoo Finance", "data": results}
 
 def get_financial_news(limit: int = 15) -> list:
     """Fetches the latest breaking financial news for the macro basket."""

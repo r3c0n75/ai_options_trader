@@ -9,13 +9,19 @@ interface ETFData {
 
 export const ETFScanner: React.FC = () => {
   const [data, setData] = useState<ETFData[]>([]);
+  const [feed, setFeed] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch('http://localhost:8000/scanner')
       .then(res => res.json())
       .then(json => {
-        setData(json);
+        if (json.data && Array.isArray(json.data)) {
+            setData(json.data);
+            setFeed(json.feed || 'Unknown');
+        } else {
+            setData(json);
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -35,7 +41,14 @@ export const ETFScanner: React.FC = () => {
             <Network className="w-5 h-5 text-indigo-400" />
             Macro Scanner
           </h2>
-          <p className="text-sm text-gray-400 mt-1">Live core asset overview</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-gray-400">Live core asset overview</p>
+            {feed && (
+              <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold tracking-wider">
+                Feed: {feed}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex gap-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
