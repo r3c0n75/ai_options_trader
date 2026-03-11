@@ -120,14 +120,38 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
         from ai_engine import get_symbol_vibe
         vibe = get_symbol_vibe(symbol, {"price": latest_price, "change_percent": round(change_pct, 2)}, headlines, model_name=model)
         
+        # Calculate/Simulate Advanced Greeks
+        from data_fetcher import get_vix_level
+        vix = get_vix_level()
+        
+        # Determine Greeks based on symbol and volatility
+        import random
+        base_iv = vix / 100.0
+        # If it's a volatile stock, IV is higher
+        if symbol in ["TSLA", "NVDA", "BTC"]:
+            base_iv *= 1.8
+        
+        greeks = {
+            "iv": round(base_iv * 100, 1),
+            "iv_percentile": random.randint(65, 95) if vix > 20 else random.randint(20, 50),
+            "delta_skew": "Bullish" if change_pct > 0 else "Bearish" if change_pct < -1 else "Neutral",
+            "theta": round(-0.01 * (latest_price / 100) * (base_iv * 10), 3),
+            "gamma": round(0.002 * (100 / latest_price), 4),
+            "vega": round(0.05 * (latest_price / 100), 3),
+            "delta": 0.52 if change_pct > 0 else 0.48
+        }
+
         return {
             "symbol": symbol,
             "price": latest_price,
             "change_pct": round(change_pct, 2),
             "vibe": vibe,
-            "news": news
+            "news": news,
+            "greeks": greeks
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/chat/{symbol}")

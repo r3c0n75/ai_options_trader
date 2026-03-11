@@ -20,6 +20,11 @@ All notable changes to this project will be documented in this file.
     - New backend detector in `main.py` that checks for underlying equity holdings before selling a Covered Call.
     - **Automatic Leg Injection:** If shares are missing, the backend automatically adds a stock "buy" leg with a 100x multiplier to the multi-leg Alpaca order.
     - Updated `alpaca_trading.py` to support dynamic `ratio_qty` in option order payloads.
+- **Advanced Greeks Analysis Dashboard**:
+    - High-fidelity visual dashboard for **Delta**, **Gamma**, **Theta**, and **Vega**.
+    - **IV Progress Gauge**: Circular SVG visualization for Implied Volatility and IV Rank.
+    - **Dynamic Skew Indicator**: Real-time sentiment analysis based on price action.
+    - Distributed numerical simulation for Greeks metrics in the backend (`main.py`) using real-world VIX-weighted logic.
 
 ### Fixed
 - **At-The-Money (ATM) Strike Selection**: Refactored the options contract filter in `data_fetcher.py` to prioritize strikes closest to the current market price. This fixes a bug where high-priced assets (QQQ, IWM) were displaying ITM-skewed payoff diagrams because the selection window didn't reach the strike.

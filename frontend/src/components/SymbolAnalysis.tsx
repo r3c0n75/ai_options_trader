@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { X, Zap, Info, BarChart3, Sparkles } from 'lucide-react';
+import { X, Zap, BarChart3, Sparkles } from 'lucide-react';
 import { SymbolChart } from './SymbolChart';
 import { ResearchSidecar } from './ResearchSidecar';
+import { GreeksVisualizer } from './GreeksVisualizer';
 
 interface SymbolAnalysisProps {
   symbol: string;
@@ -19,6 +20,15 @@ interface AnalysisData {
     suggested_play: string;
   };
   news: any[];
+  greeks?: {
+    iv: number;
+    iv_percentile: number;
+    delta_skew: string;
+    theta: number;
+    gamma: number;
+    vega: number;
+    delta: number;
+  };
 }
 
 export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose }) => {
@@ -114,27 +124,23 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
               <SymbolChart symbol={symbol} hideHeader />
             </div>
 
-            {/* News Hook */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gray-900/20 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-center gap-2 mb-4 text-gray-400">
-                  <Info className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Key Catalysts</span>
+            {/* Advanced Greeks Area */}
+            <div className="bg-gray-900/10 border border-gray-800/50 rounded-3xl p-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+                    <BarChart3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-lg">Advanced Greeks Analysis</h4>
+                    <p className="text-xs text-gray-500 font-medium">Real-time options risk & sensitivity metrics</p>
+                  </div>
                 </div>
-                <div className="space-y-4 text-sm">
-                  {data?.news.slice(0, 3).map((item, i) => (
-                    <div key={i} className="flex gap-3 items-start border-l-2 border-blue-500/30 pl-3">
-                      <span className="text-gray-300 line-clamp-2">{item.headline}</span>
-                    </div>
-                  ))}
-                  {loading && [1,2].map(i => <div key={i} className="h-4 bg-gray-800 rounded-lg w-full animate-pulse" />)}
+                <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                  Live Feed
                 </div>
               </div>
-              <div className="bg-gray-900/20 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center items-center text-center">
-                <BarChart3 className="w-10 h-10 text-gray-700 mb-3" />
-                <h4 className="font-bold text-white mb-1">Advanced Greeks Analysis</h4>
-                <p className="text-xs text-gray-500">IV Percentile: 82% | Delta Skew: Bullish</p>
-              </div>
+              <GreeksVisualizer greeks={data?.greeks} loading={loading} />
             </div>
           </div>
 

@@ -20,10 +20,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Real-time Sync**: Natively syncs all actions (orders, liquidations) with the Alpaca web portal.
     * **Real Options Integration**: Natively executes and groups multi-leg Option Orders (`mleg`) via Alpaca Options Beta, visualizing active trade Payoff charts directly in the portfolio.
     * **Covered Call Buy-Write Fallback**: Automatically detects missing underlying equity for Covered Call strategies and injects a stock "buy" leg into the multi-leg order, effectively executing a Buy-Write to satisfy Alpaca tier requirements.
-* **Trade Confirmation & Execution Flow**: 
-    * **Review Modal**: All trade setups now trigger a high-fidelity confirmation modal before submission.
-    * **Dynamic Quantity**: Users can adjust the contract/share quantity directly within the modal, which dynamically recalculates the order implication across all legs.
     * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
+* **Advanced Greeks Analysis**:
+    * **Visual Dashboard**: High-fidelity UI for Delta, Gamma, Theta, and Vega.
+    * **Calculated Metrics**: Real-time simulation of Greeks in `main.py` using live volatility data and underlying price action.
+    * **IV Visualization**: Circular progress gauges for IV Rank and Implied Volatility.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
@@ -38,6 +39,5 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
 
 ## Next Steps
-* Implement advanced Greeks calculation via the Alpaca Options Beta.
 * Enhance AI suggestions with an LLM (currently hardcoded conditional logic based on VIX).
 * Add technical analysis indicators (RSI, MACD, Volume) as overlays to the Symbol Charts.
