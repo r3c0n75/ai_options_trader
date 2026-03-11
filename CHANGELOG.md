@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
     - Updated `alpaca_trading.py` to support dynamic `ratio_qty` in option order payloads.
 
 ### Fixed
+- **At-The-Money (ATM) Strike Selection**: Refactored the options contract filter in `data_fetcher.py` to prioritize strikes closest to the current market price. This fixes a bug where high-priced assets (QQQ, IWM) were displaying ITM-skewed payoff diagrams because the selection window didn't reach the strike.
+- **Dynamic Straddle Premiums**: Updated `engine.py` to calculate straddle premiums as a percentage of the underlying price (1.5%) instead of a hardcoded value, ensuring mathematical accuracy for payoff curves across all price ranges.
 - **Strategy Payoff Inversion (Final)**: Implemented an exhaustive normalization layer in `StrategyPayoff.tsx` that handles multiple side/type identifiers (BUY, LONG, B, etc.) case-insensitively. This ensures that P/L calculations no longer default to 'SELL' logic when encountering slightly varied data formats, correctly rendering profit/loss zones for all strategies.
 - **Frontend Typings:** Resolved several TypeScript compilation errors in the new modal component (TS1259 default-import mismatch and TS6133 unused imports).
 - **Implicit Any Errors:** Added explicit TypeScript interfaces to `map` functions within React components to satisfy strict `tsc` requirements.

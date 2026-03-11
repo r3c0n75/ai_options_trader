@@ -108,17 +108,17 @@ def get_options_chain(symbol: str = "SPY"):
         calls.sort(key=lambda x: float(x['strike_price']))
         puts.sort(key=lambda x: float(x['strike_price']))
         
-        # Filter near-the-money (within +/- 5% or simply closest to price)
-        calls_ntm = [c for c in calls if float(c['strike_price']) >= current_price * 0.90]
-        puts_ntm = [c for c in puts if float(c['strike_price']) <= current_price * 1.10]
+        # Sort by proximity to current price and take the closest ones
+        calls.sort(key=lambda x: abs(float(x['strike_price']) - current_price))
+        puts.sort(key=lambda x: abs(float(x['strike_price']) - current_price))
         
-        # If the NTM filtering resulted in empty lists (e.g., highly volatile gaps), fallback to just grabbing some
-        if not calls_ntm: calls_ntm = calls
-        if not puts_ntm: puts_ntm = puts
+        # Take the closest 15 for each (ensures we have ATM/NTM strikes)
+        calls_ntm = sorted(calls[:15], key=lambda x: float(x['strike_price']))
+        puts_ntm = sorted(puts[:15], key=lambda x: float(x['strike_price']))
         
-        # Format similar to yfinance fallback for frontend / engine compatibility
+        # Format for frontend / engine compatibility
         formatted_calls = []
-        for c in calls_ntm[:15]:
+        for c in calls_ntm:
             formatted_calls.append({
                 'contractSymbol': c['symbol'],
                 'strike': float(c['strike_price']),
@@ -127,7 +127,7 @@ def get_options_chain(symbol: str = "SPY"):
             })
             
         formatted_puts = []
-        for c in puts_ntm[-15:]:
+        for c in puts_ntm:
             formatted_puts.append({
                 'contractSymbol': c['symbol'],
                 'strike': float(c['strike_price']),

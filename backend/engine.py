@@ -211,6 +211,8 @@ def generate_recommendations():
             atm_call_strike, atm_call_occ = get_contract(calls, current_price)
             atm_put_strike, atm_put_occ = get_contract(puts, current_price)
             if atm_call_strike and atm_put_strike:
+                # Higher price assets need more realistic premiums to avoid ITM-skewed diagrams
+                straddle_prem = round(current_price * 0.015, 2)
                 recs.append({
                     "symbol": symbol,
                     "strategy": "Long Straddle/Strangle",
@@ -225,8 +227,8 @@ def generate_recommendations():
                         "underlying_price": current_price,
                         "strategy_type": "straddle",
                         "legs": [
-                            {"strike": atm_call_strike, "side": "BUY", "type": "CALL", "premium": 3.00, "symbol": atm_call_occ},
-                            {"strike": atm_put_strike, "side": "BUY", "type": "PUT", "premium": 3.00, "symbol": atm_put_occ}
+                            {"strike": atm_call_strike, "side": "BUY", "type": "CALL", "premium": straddle_prem, "symbol": atm_call_occ},
+                            {"strike": atm_put_strike, "side": "BUY", "type": "PUT", "premium": straddle_prem, "symbol": atm_put_occ}
                         ]
                     }
                 })
