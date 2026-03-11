@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Zap, AlertTriangle, CheckCircle2, Search, ArrowRight } from 'lucide-react';
+import { Target, Zap, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, ArrowRight, Filter, ChevronDown } from 'lucide-react';
 
 interface Recommendation {
   symbol: string;
   strategy: string;
+  side: string; // 'BUY' or 'SELL'
   thesis: string;
   expiration: string;
   target_entry: string;
@@ -16,6 +17,31 @@ export const Recommendations: React.FC = () => {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
+  const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
+  const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence'>('none');
+
+  const parsePop = (pop: string) => parseInt(pop.replace('%', '')) || 0;
+  
+  const parseRiskReward = (rr: string) => {
+    if (rr === 'Uncapped') return 100;
+    const parts = rr.split(':').map(Number);
+    if (parts.length === 2 && parts[1] !== 0) return parts[0] / parts[1];
+    return 0;
+  };
+
+  const confidenceValue = (c: string) => {
+    const map: Record<string, number> = { 'High': 3, 'Moderate': 2, 'Low': 1 };
+    return map[c] || 0;
+  };
+
+  const processedRecs = [...recs]
+    .filter(r => filterSide === 'ALL' || r.side === filterSide)
+    .sort((a, b) => {
+      if (sortBy === 'pop') return parsePop(b.pop) - parsePop(a.pop);
+      if (sortBy === 'risk') return parseRiskReward(b.risk_reward) - parseRiskReward(a.risk_reward);
+      if (sortBy === 'confidence') return confidenceValue(b.confidence) - confidenceValue(a.confidence);
+      return 0;
+    });
 
   const fetchRecs = async () => {
     setLoading(true);
@@ -67,6 +93,41 @@ export const Recommendations: React.FC = () => {
           </h2>
           <p className="text-gray-400 text-sm mt-1">Autonomous evaluation across SPY, QQQ, TMF, etc.</p>
         </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          {/* Side Filter */}
+          <div className="flex bg-gray-900/80 border border-gray-800 rounded-xl p-1">
+            {(['ALL', 'BUY', 'SELL'] as const).map(side => (
+              <button
+                key={side}
+                onClick={() => setFilterSide(side)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  filterSide === side 
+                    ? 'bg-gray-800 text-white shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {side}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="relative group">
+            <div className="flex items-center gap-2 bg-gray-900/80 border border-gray-800 rounded-xl px-4 py-1.5 text-xs font-bold text-gray-400 group-hover:border-gray-700 transition-all cursor-pointer">
+              <Filter className="w-3.5 h-3.5" />
+              <span>Sort By: <span className="text-white capitalize">{sortBy === 'none' ? 'Default' : sortBy === 'risk' ? 'Risk/Reward' : sortBy}</span></span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </div>
+            
+            <div className="absolute right-0 top-full mt-2 w-48 bg-gray-950 border border-gray-800 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+              <button onClick={() => setSortBy('none')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Default</button>
+              <button onClick={() => setSortBy('pop')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Win Prob (POP)</button>
+              <button onClick={() => setSortBy('risk')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Risk/Reward Ratio</button>
+              <button onClick={() => setSortBy('confidence')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">AI Confidence</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {tradeStatus && (
@@ -80,13 +141,13 @@ export const Recommendations: React.FC = () => {
         <div className="grid gap-4">
           {[1,2].map(i => <div key={i} className="h-48 bg-gray-900 border border-gray-800 rounded-2xl animate-pulse" />)}
         </div>
-      ) : recs.length === 0 ? (
+      ) : processedRecs.length === 0 ? (
         <div className="text-gray-500 text-center py-10 bg-gray-900/30 rounded-2xl border border-gray-800">
-          No actionable setups found across the macro basket at this time.
+          No actionable setups found matching your filters.
         </div>
       ) : (
         <div className="grid gap-4">
-          {recs.map((rec, idx) => (
+          {processedRecs.map((rec, idx) => (
             <div key={idx} className="group bg-gray-900/40 hover:bg-gray-800/60 border border-gray-800 hover:border-gray-700 transition-all duration-300 rounded-2xl p-6 relative overflow-hidden">
                {/* Hover gradient effect */}
                <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -96,6 +157,14 @@ export const Recommendations: React.FC = () => {
                    <div className="flex items-center gap-3 mb-2">
                      <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
                        {rec.symbol}
+                     </span>
+                     <span className={`px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1.5 ${
+                       rec.side === 'BUY' 
+                         ? 'bg-emerald-500/20 text-emerald-400' 
+                         : 'bg-orange-500/20 text-orange-400'
+                     }`}>
+                       {rec.side === 'BUY' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                       {rec.side}
                      </span>
                      <h3 className="text-xl font-bold text-gray-100">{rec.strategy}</h3>
                    </div>

@@ -32,6 +32,7 @@ class MarketHealthResponse(BaseModel):
 class TradeRecommendation(BaseModel):
     symbol: str
     strategy: str
+    side: str
     thesis: str
     expiration: str
     target_entry: str

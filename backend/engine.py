@@ -41,7 +41,8 @@ def generate_recommendations():
     # For this simulation, we'll pick the top 3 best setups based on Market Health
     # and assign a thesis based on recent news.
     
-    symbols_to_evaluate = MACRO_BASKET[:3] # Pick top 3 for speed (SPY, QQQ, TMF)
+    # We pick more symbols to offer a wider variety of ideas
+    symbols_to_evaluate = MACRO_BASKET[:len(MACRO_BASKET)] # Evaluate the whole basket
     
     for symbol in symbols_to_evaluate:
         chain = get_options_chain(symbol)
@@ -51,38 +52,88 @@ def generate_recommendations():
         current_price = chain["current_price"]
         expiration = chain["expiration"]
         
-        if health["status"] == "Seller's Market":
+        # High Volatility (Seller's Market)
+        if health["vix_level"] > 25:
+            # Idea 1: Premium collection (Sell)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Put Credit Spread",
-                "thesis": f"High Volatility. Catalyst Context: {news_headlines[:100]}... Selling a put to capture premium crush.",
+                "side": "SELL",
+                "thesis": f"High Implied Volatility crush expected. Selling downside insurance on {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"Sell Put ~${round(current_price * 0.95, 2)} strk",
-                "pop": "75%", 
-                "risk_reward": "1:3",
+                "target_entry": f"Sell Put ~${round(current_price * 0.95, 2)} / Buy Put ~${round(current_price * 0.94, 2)}",
+                "pop": "78%", 
+                "risk_reward": "1:3.5",
                 "confidence": "High"
             })
-        elif health["status"] == "Buyer's Market":
+            # Idea 2: Strategic Covered Call (Sell)
             recs.append({
                 "symbol": symbol,
-                "strategy": "Long Call / Debit Spread",
-                "thesis": f"Low Volatility breakout setup. Catalyst Context: {news_headlines[:100]}... Cheap premium favors buying.",
+                "strategy": "Covered Call",
+                "side": "SELL",
+                "thesis": f"Capitalizing on expensive call premiums while holding {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"Buy Call ~${round(current_price * 1.02, 2)} strk",
-                "pop": "40%", 
-                "risk_reward": "4:1",
+                "target_entry": f"Sell Call ~${round(current_price * 1.05, 2)} strike",
+                "pop": "82%",
+                "risk_reward": "1:1",
+                "confidence": "High"
+            })
+            
+        # Low Volatility (Buyer's Market)
+        elif health["vix_level"] < 17:
+            # Idea 1: Directional Leverage (Buy)
+            recs.append({
+                "symbol": symbol,
+                "strategy": "Long Call / ATM Leap",
+                "side": "BUY",
+                "thesis": f"Low cost of leverage. Technical breakout potential for {symbol}.",
+                "expiration": expiration,
+                "target_entry": f"Buy Call at ~${round(current_price, 2)} strike",
+                "pop": "45%", 
+                "risk_reward": "5:1",
                 "confidence": "Moderate"
             })
+            # Idea 2: Bullish Trend (Buy)
+            recs.append({
+                "symbol": symbol,
+                "strategy": "Bull Call Debit Spread",
+                "side": "BUY",
+                "thesis": f"Cheap premium. Capped risk play on continued macro strength.",
+                "expiration": expiration,
+                "target_entry": f"Buy Call At-the-money / Sell Call OTM",
+                "pop": "55%",
+                "risk_reward": "2.5:1",
+                "confidence": "Moderate"
+            })
+            
+        # Neutral / Sideways (Cash/Moderate Market)
         else:
+            # Idea 1: Rangebound Capture (Sell)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Iron Condor",
-                "thesis": f"Neutral market. Catalyst Context: {news_headlines[:100]}... Expecting {symbol} to remain rangebound.",
+                "side": "SELL",
+                "thesis": f"Macro consolidation. Harvesting theta decay as {symbol} stays rangebound.",
                 "expiration": expiration,
-                "target_entry": "Market Neutral Spread",
-                "pop": "60%",
-                "risk_reward": "1:2",
+                "target_entry": "Market Neutral 10-delta Wings",
+                "pop": "65%",
+                "risk_reward": "1:2.2",
+                "confidence": "Moderate"
+            })
+            # Idea 2: Earnings / Vol Play (Buy)
+            recs.append({
+                "symbol": symbol,
+                "strategy": "Long Straddle/Strangle",
+                "side": "BUY",
+                "thesis": f"Buying cheap volatility ahead of potential macro catalyst expansion.",
+                "expiration": expiration,
+                "target_entry": f"Buy Call + Buy Put near money",
+                "pop": "35%",
+                "risk_reward": "Uncapped",
                 "confidence": "Low"
             })
             
-    return recs[:3] # Return top 3 ideas
+    # Mix up the recommendations and pick the best 5
+    import random
+    random.shuffle(recs)
+    return recs[:6]
