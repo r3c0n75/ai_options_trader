@@ -8,6 +8,7 @@ from database import engine, get_db
 from engine import evaluate_market_health, generate_recommendations
 from pydantic import BaseModel
 import datetime
+from alpaca_trading import submit_order, get_positions, close_position, close_all_positions, get_orders, cancel_order
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -45,7 +46,7 @@ class TradeCreate(BaseModel):
     quantity: int
 
 class TradeResponse(BaseModel):
-    id: int
+    id: str
     symbol: str
     strategy: str
     entry_price: float
@@ -80,42 +81,83 @@ def get_top_recommendations():
     return recs
 
 @app.post("/trades", response_model=TradeResponse)
-def execute_paper_trade(trade: TradeCreate, db: Session = Depends(get_db)):
-    db_trade = models.TradeHistory(
-        symbol=trade.symbol,
-        strategy=trade.strategy,
-        entry_price=trade.entry_price,
-        quantity=trade.quantity,
-        status="OPEN"
-    )
-    db.add(db_trade)
-    db.commit()
-    db.refresh(db_trade)
-    return db_trade
+def execute_paper_trade(trade: TradeCreate):
+    try:
+        # For simplicity in v1, we simulate 1 options contract = buying 10 stock shares in paper account
+        qty_to_buy = max(1, trade.quantity * 10)
+        submit_order(trade.symbol, qty_to_buy, "buy")
+        return TradeResponse(
+            id=trade.symbol,
+            symbol=trade.symbol,
+            strategy="Equity Buy",
+            entry_price=trade.entry_price,
+            quantity=qty_to_buy,
+            status="OPEN",
+            opened_at=datetime.datetime.utcnow()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/trades", response_model=List[TradeResponse])
-def get_open_trades(db: Session = Depends(get_db)):
-    trades = db.query(models.TradeHistory).filter(models.TradeHistory.status == "OPEN").all()
-    return trades
+def get_open_trades():
+    try:
+        positions = get_positions()
+        orders = get_orders()
+        trades = []
+        for p in positions:
+            trades.append(TradeResponse(
+                id=p["symbol"],
+                symbol=p["symbol"],
+                strategy="Equity Long",
+                entry_price=float(p.get("avg_entry_price", 0.0)),
+                quantity=abs(int(float(p.get("qty", 0)))),
+                status="OPEN",
+                opened_at=datetime.datetime.utcnow()
+            ))
+        for o in orders:
+            trades.append(TradeResponse(
+                id=o["id"],
+                symbol=o["symbol"],
+                strategy="Equity Order",
+                entry_price=0.0,
+                quantity=abs(int(float(o.get("qty", 0)))),
+                status="PENDING",
+                opened_at=datetime.datetime.utcnow()
+            ))
+        return trades
+    except Exception as e:
+        print(f"Error fetching positions/orders: {e}")
+        return []
 
-@app.delete("/trades/{trade_id}", response_model=dict)
-def delete_paper_trade(trade_id: int, db: Session = Depends(get_db)):
-    trade = db.query(models.TradeHistory).filter(models.TradeHistory.id == trade_id).first()
-    if not trade:
-        raise HTTPException(status_code=404, detail="Trade not found")
-    
-    db.delete(trade)
-    db.commit()
-    return {"message": "Trade deleted successfully"}
+@app.delete("/trades/{symbol_or_id}", response_model=dict)
+def delete_paper_trade(symbol_or_id: str):
+    try:
+        # Try to cancel it if it's an order ID (UUID format usually)
+        if len(symbol_or_id) > 15:  
+            cancel_order(symbol_or_id)
+            return {"message": "Pending order cancelled successfully"}
+        else:
+            close_position(symbol_or_id)
+            return {"message": "Position liquidated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/trades/{trade_id}/close", response_model=TradeResponse)
-def close_paper_trade(trade_id: int, db: Session = Depends(get_db)):
-    trade = db.query(models.TradeHistory).filter(models.TradeHistory.id == trade_id).first()
-    if not trade:
-        raise HTTPException(status_code=404, detail="Trade not found")
-    
-    trade.status = "CLOSED"
-    trade.closed_at = datetime.datetime.utcnow()
-    db.commit()
-    db.refresh(trade)
-    return trade
+@app.post("/trades/{symbol_or_id}/close", response_model=dict)
+def close_paper_trade(symbol_or_id: str):
+    try:
+        if len(symbol_or_id) > 15:
+            cancel_order(symbol_or_id)
+            return {"message": "Pending order cancelled successfully"}
+        else:
+            close_position(symbol_or_id)
+            return {"message": "Position closed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/trades", response_model=dict)
+def reset_all_trades():
+    try:
+        close_all_positions()
+        return {"message": "All portfolio positions liquidated"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

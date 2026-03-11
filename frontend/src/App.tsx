@@ -22,7 +22,7 @@ function App() {
     }
   }, [activeTab]);
 
-  const handleClosePosition = async (id: number) => {
+  const handleClosePosition = async (id: string) => {
     try {
       await fetch(`http://localhost:8000/trades/${id}/close`, { method: 'POST' });
       fetchTrades();
@@ -31,7 +31,7 @@ function App() {
     }
   };
 
-  const handleDeletePosition = async (id: number) => {
+  const handleDeletePosition = async (id: string) => {
     try {
       await fetch(`http://localhost:8000/trades/${id}`, { method: 'DELETE' });
       fetchTrades();
@@ -109,8 +109,21 @@ function App() {
         {activeTab === 'portfolio' && (
           <main>
             <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-8 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4">
-              <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
-                <Briefcase className="text-blue-400 w-6 h-6" /> Open Positions
+              <h2 className="text-2xl font-bold text-white mb-8 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Briefcase className="text-blue-400 w-6 h-6" /> Open Positions
+                </div>
+                {trades.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      await fetch('http://localhost:8000/trades', { method: 'DELETE' });
+                      fetchTrades();
+                    }}
+                    className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/40 px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Liquidate All
+                  </button>
+                )}
               </h2>
               
               {trades.length === 0 ? (
@@ -142,8 +155,14 @@ function App() {
                           <td className="py-5 px-6 font-mono text-gray-400">{t.quantity} <span className="text-gray-600 text-xs ml-1">CONT</span></td>
                           <td className="py-5 px-6 text-gray-500 text-sm font-mono">{new Date(t.opened_at).toLocaleDateString()}</td>
                           <td className="py-5 px-6">
-                            <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider border ${
+                              t.status === 'PENDING' 
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                t.status === 'PENDING' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                              }`} />
                               {t.status}
                             </span>
                           </td>
