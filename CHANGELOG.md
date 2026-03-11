@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
     - High-fidelity **Lucide-React** modal UI intercepting all order submissions.
     - Allows real-time **Quantity Modification** before executing a paper trade.
     - Displays order "implications" (leg-by-leg summary) and strategy-specific warnings (e.g., Buy-Write notifications).
+- **New Asset: USO**:
+    - Added the United States Oil Fund (USO) to the core macro scanner basket.
+    - Enables real-time news aggregation and automated trade recommendations for crude oil volatility.
 - **Covered Call Buy-Write Logic:**
     - New backend detector in `main.py` that checks for underlying equity holdings before selling a Covered Call.
     - **Automatic Leg Injection:** If shares are missing, the backend automatically adds a stock "buy" leg with a 100x multiplier to the multi-leg Alpaca order.

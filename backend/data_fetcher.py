@@ -18,7 +18,7 @@ ALPACA_STOCKS_URL = "https://data.alpaca.markets/v2/stocks"
 # Alpaca News API
 ALPACA_NEWS_URL = "https://data.alpaca.markets/v1beta1/news"
 
-MACRO_BASKET = ["SPY", "QQQ", "TMF", "BND", "GLD", "IWM"]
+MACRO_BASKET = ["SPY", "QQQ", "IWM", "USO", "GLD", "TMF", "BND"]
 
 def get_headers():
     return {
