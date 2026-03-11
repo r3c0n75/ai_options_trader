@@ -27,6 +27,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Visual Dashboard**: High-fidelity UI for Delta, Gamma, Theta, and Vega.
     * **Calculated Metrics**: Real-time simulation of Greeks in `main.py` using live volatility data and underlying price action.
     * **IV Visualization**: Circular progress gauges for IV Rank and Implied Volatility.
+* **Smart Strategy Visualization (Payoff Diagrams)**:
+    * **Adaptive Auto-Scaling**: Implemented intelligent X and Y axis framing. X-axis now centers on strikes and premium breakevens with a minimum 5% price floor. Y-axis fits the specific trade's P/L peak to fill the chart vertically without "stretching thin".
+    * **Ultra-Zoom Stability**: Optimized SVG path logic and added division-by-zero guards to maintain chart rendering at 200x magnification levels.
+    * **Control Event Isolation**: Stopped event propagation in chart UI buttons, resolving a bug where zoom actions would inadvertently close the parent modal.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
@@ -39,6 +43,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Alpaca Option Tiers (Covered Calls)**: Confirmed that Paper Accounts are restricted from selling naked calls (Tier 4). To sell a Covered Call without owning the stock, it must be submitted as a single multi-leg "Buy-Write" order (100 shares + 1 Short Call). Our implementation now handles this detection and injection automatically in the backend.
 * **ATM Strike Proximity**: High-priced assets with high liquidity (QQQ) require strike selection based on absolute price proximity rather than index-based slicing of a range. This prevents "ITM bias" in payoff diagrams where the selection window fails to reach the current price.
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
+* **Low-Impact Strategy Scaling**: Strategies on low-priced assets (TMF) collecting small premiums ($0.50) initially appeared as flat lines due to a fixed +/- $10 P/L axis. Switching to a percentage-based adaptive Y-axis (Peak * 1.25) ensures clear visual feedback regardless of absolute dollar amounts.
 
 ## Next Steps
 ## Next Steps

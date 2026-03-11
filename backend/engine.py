@@ -64,13 +64,17 @@ def generate_recommendations():
         def get_lower_contract(opts, than_strike):
             lower = [p for p in opts if p['strike'] < than_strike]
             if lower:
-                return max(lower, key=lambda x: x['strike'])
+                # Pick the second closest strike to ensure wider wings
+                sorted_lower = sorted(lower, key=lambda x: x['strike'], reverse=True)
+                return sorted_lower[min(len(sorted_lower)-1, 1)] 
             return None
             
         def get_higher_contract(opts, than_strike):
             higher = [c for c in opts if c['strike'] > than_strike]
             if higher:
-                return min(higher, key=lambda x: x['strike'])
+                # Pick the second closest strike to ensure wider wings
+                sorted_higher = sorted(higher, key=lambda x: x['strike'])
+                return sorted_higher[min(len(sorted_higher)-1, 1)]
             return None
 
         # High Volatility (Seller's Market)
@@ -95,8 +99,8 @@ def generate_recommendations():
                         "underlying_price": current_price,
                         "strategy_type": "credit_spread",
                         "legs": [
-                            {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": 2.50, "symbol": s_put_occ},
-                            {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": 0.50, "symbol": l_put_occ}
+                            {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": round(current_price * 0.015, 2), "symbol": s_put_occ},
+                            {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": round(current_price * 0.005, 2), "symbol": l_put_occ}
                         ]
                     }
                 })
@@ -185,6 +189,13 @@ def generate_recommendations():
                 l_c_strike = l_c_contract['strike']
                 l_c_occ = l_c_contract['contractSymbol']
                 
+                # Conservatively scaled premiums (collecting ~1/4 of total wing width)
+                # Short legs at ~0.8% of price, Long legs at ~0.2%
+                s_p_prem = round(current_price * 0.008, 2)
+                l_p_prem = round(current_price * 0.002, 2)
+                s_c_prem = round(current_price * 0.008, 2)
+                l_c_prem = round(current_price * 0.002, 2)
+
                 recs.append({
                     "symbol": symbol,
                     "strategy": "Iron Condor",
@@ -199,10 +210,10 @@ def generate_recommendations():
                         "underlying_price": current_price,
                         "strategy_type": "iron_condor",
                         "legs": [
-                            {"strike": s_p_strike, "side": "SELL", "type": "PUT", "premium": 1.20, "symbol": s_p_occ},
-                            {"strike": l_p_strike, "side": "BUY", "type": "PUT", "premium": 0.40, "symbol": l_p_occ},
-                            {"strike": s_c_strike, "side": "SELL", "type": "CALL", "premium": 1.20, "symbol": s_c_occ},
-                            {"strike": l_c_strike, "side": "BUY", "type": "CALL", "premium": 0.40, "symbol": l_c_occ}
+                            {"strike": s_p_strike, "side": "SELL", "type": "PUT", "premium": s_p_prem, "symbol": s_p_occ},
+                            {"strike": l_p_strike, "side": "BUY", "type": "PUT", "premium": l_p_prem, "symbol": l_p_occ},
+                            {"strike": s_c_strike, "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_c_occ},
+                            {"strike": l_c_strike, "side": "BUY", "type": "CALL", "premium": l_c_prem, "symbol": l_c_occ}
                         ]
                     }
                 })

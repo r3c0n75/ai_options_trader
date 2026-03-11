@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 interface StrategyLeg {
   strike: number;
@@ -18,7 +19,9 @@ interface StrategyPayoffProps {
 }
 
 export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
-  const { underlying_price, legs } = data;
+  const { underlying_price, legs = [] } = data;
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0); 
+  const [hoverData, setHoverData] = useState<{ price: number; pnl: number; x: number } | null>(null);
 
   // Calculate P&L for a single price point
   const calculatePnL = (price: number) => {
@@ -59,32 +62,65 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
 
   // Generate data points for the SVG path
   const points = useMemo(() => {
-    const range = underlying_price * 0.2; // 20% range
+    // Smart range: 
+    // 1. Find furthest strike distance
+    const maxStrikeDist = legs.length > 0 
+      ? Math.max(...legs.map(l => Math.abs(l.strike - underlying_price)))
+      : 0;
+    
+    // 2. Consider total premium as a range factor (especially for straddles)
+    const totalPremium = legs.reduce((sum, l) => sum + (l.premium || 0), 0);
+    
+    // 3. Set a minimum floor (5% of underlying) so it doesn't look 'thin'
+    const priceFloor = underlying_price * 0.05;
+
+    // Use the max of these factors with 20% padding
+    const baseRange = Math.max(maxStrikeDist, totalPremium, priceFloor) * 1.2;
+    const range = Math.max(baseRange * zoomLevel, 0.5); 
+    
     const minPrice = underlying_price - range;
     const maxPrice = underlying_price + range;
     const step = (maxPrice - minPrice) / 100;
 
     const result = [];
-    for (let p = minPrice; p <= maxPrice; p += step) {
+    for (let i = 0; i <= 100; i++) {
+      const p = minPrice + i * step;
       result.push({ price: p, pnl: calculatePnL(p) });
     }
     return result;
-  }, [underlying_price, legs]);
+  }, [underlying_price, legs, zoomLevel]);
 
-  const maxPnL = Math.max(...points.map(p => Math.abs(p.pnl)), 10);
+  const minPnL = useMemo(() => {
+    if (!points.length) return 0;
+    return Math.min(...points.map((p: any) => p.pnl));
+  }, [points]);
+
+  const maxPnLValue = useMemo(() => {
+    if (!points.length) return 0;
+    return Math.max(...points.map((p: any) => p.pnl));
+  }, [points]);
+
+  const maxPnLScale = useMemo(() => {
+    const peak = Math.max(Math.abs(minPnL), Math.abs(maxPnLValue));
+    // Fit the curve vertically: use the peak profit/loss with a 20% buffer
+    // Minimum floor of $1.00 to avoid extreme magnification on flat lines
+    return Math.max(peak * 1.2, 1.0);
+  }, [minPnL, maxPnLValue]);
+  
   const margin = 40;
   const width = 640;
   const height = 270;
 
   const xScale = (price: number) => {
-    const minPrice = points[0].price;
-    const maxPrice = points[points.length - 1].price;
-    return margin + ((price - minPrice) / (maxPrice - minPrice)) * (width - 2 * margin);
+    const minPrice = points[0]?.price || underlying_price - 10;
+    const maxPrice = points[points.length - 1]?.price || underlying_price + 10;
+    const diff = maxPrice - minPrice;
+    return margin + ((price - minPrice) / (diff || 1)) * (width - 2 * margin);
   };
 
   const yScale = (pnl: number) => {
     // Center Y at 0
-    return height / 2 - (pnl / maxPnL) * (height / 2 - margin);
+    return height / 2 - (pnl / maxPnLScale) * (height / 2 - margin);
   };
 
   const linePath = useMemo(() => {
@@ -110,8 +146,12 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
       } else if (p1.pnl <= 0 && p2.pnl <= 0) {
         lossArea.push(`M ${x1} ${zeroY} L ${x1} ${y1} L ${x2} ${y2} L ${x2} ${zeroY} Z`);
       } else {
-        // Crossing zero - simplified: just split into two
-        const midX = x1 + (x2 - x1) * (Math.abs(p1.pnl) / (Math.abs(p1.pnl) + Math.abs(p2.pnl)));
+        // Crossing zero - guard against division by zero
+        const abs1 = Math.abs(p1.pnl);
+        const abs2 = Math.abs(p2.pnl);
+        const totalAbs = abs1 + abs2;
+        const midX = totalAbs === 0 ? x1 : x1 + (x2 - x1) * (abs1 / totalAbs);
+        
         if (p1.pnl > 0) {
           profitArea.push(`M ${x1} ${zeroY} L ${x1} ${y1} L ${midX} ${zeroY} Z`);
           lossArea.push(`M ${midX} ${zeroY} L ${x2} ${y2} L ${x2} ${zeroY} Z`);
@@ -122,12 +162,63 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
       }
     }
     return { profit: profitArea.join(' '), loss: lossArea.join(' ') };
-  }, [points]);
+  }, [points, zoomLevel]);
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    
+    // Reverse scale x to price
+    const minPrice = points[0].price;
+    const maxPrice = points[points.length - 1].price;
+    const price = minPrice + ((x - margin) / (width - 2 * margin)) * (maxPrice - minPrice);
+    
+    if (price >= minPrice && price <= maxPrice) {
+      setHoverData({ price, pnl: calculatePnL(price), x });
+    }
+  };
 
   return (
     <div className="bg-gray-950/60 p-4 rounded-xl border border-gray-800/50 mt-4 overflow-hidden">
       <div className="flex justify-between items-center mb-4">
-        <span className="text-[10px] font-black tracking-widest text-gray-500 uppercase">Analysis Curve © EXP</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-black tracking-widest text-gray-500 uppercase">Analysis Curve © EXP</span>
+          <div className="flex items-center gap-1.5 bg-gray-950 rounded-xl p-1.5 border border-white/5 shadow-2xl">
+            <button 
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                setZoomLevel((prev: number) => Math.min(prev * 1.5, 5.0));
+              }}
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white active:scale-90 border border-transparent hover:border-white/10"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-5 bg-white/10 mx-0.5" />
+            <button 
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                setZoomLevel((prev: number) => Math.max(prev / 1.5, 0.005));
+              }}
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white active:scale-90 border border-transparent hover:border-white/10"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-5 bg-white/10 mx-0.5" />
+            <button 
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                setZoomLevel(1.0);
+              }}
+              className="p-2.5 bg-white/5 hover:bg-emerald-500/20 rounded-lg transition-all text-gray-400 hover:text-emerald-400 active:scale-90 border border-transparent hover:border-emerald-500/20"
+              title="Reset View"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-500/50" />
@@ -140,7 +231,12 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
         </div>
       </div>
 
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
+      <svg 
+        viewBox={`0 0 ${width} ${height}`} 
+        className="w-full h-auto overflow-visible cursor-crosshair"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverData(null)}
+      >
         {/* Grids */}
         <line x1={margin} y1={yScale(0)} x2={width - margin} y2={yScale(0)} stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
         
@@ -152,8 +248,8 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
         <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" />
 
         {/* Strike Markers */}
-        {legs.map((leg: StrategyLeg, i: number) => (
-          <g key={i}>
+        {(legs || []).map((leg, i) => (
+          <g key={`strike-${i}`}>
             <line 
               x1={xScale(leg.strike)} 
               y1={margin} 
@@ -203,9 +299,53 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
           </text>
         </g>
 
+        {/* Inspection Marker */}
+        {hoverData && (
+          <g>
+            <line 
+              x1={hoverData.x} 
+              y1={margin} 
+              x2={hoverData.x} 
+              y2={height - margin} 
+              stroke="#3b82f6" 
+              strokeWidth="1" 
+              strokeDasharray="4 4"
+              className="pointer-events-none"
+            />
+            <circle cx={hoverData.x} cy={yScale(hoverData.pnl)} r="5" fill="#3b82f6" stroke="#fff" strokeWidth="1.5" />
+            
+            {/* Tooltip background */}
+            <rect 
+              x={hoverData.x > width / 2 ? hoverData.x - 70 : hoverData.x + 10} 
+              y={yScale(hoverData.pnl) - 35} 
+              width="60" 
+              height="25" 
+              rx="4" 
+              fill="#1e293b" 
+              className="shadow-xl"
+            />
+            <text 
+              x={hoverData.x > width / 2 ? hoverData.x - 40 : hoverData.x + 40} 
+              y={yScale(hoverData.pnl) - 18} 
+              textAnchor="middle" 
+              className="text-[10px] font-bold fill-white"
+            >
+              {hoverData.pnl >= 0 ? '+' : '-'}${Math.abs(hoverData.pnl).toFixed(2)}
+            </text>
+            <text 
+              x={hoverData.x} 
+              y={height - margin - 5} 
+              textAnchor="middle" 
+              className="text-[9px] font-mono fill-blue-400 bg-black"
+            >
+              ${hoverData.price.toFixed(2)}
+            </text>
+          </g>
+        )}
+
         {/* X-Axis */}
         <line x1={margin} y1={height - margin + 20} x2={width - margin} y2={height - margin + 20} stroke="#1e293b" strokeWidth="1" />
-        {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+        {[0, 0.25, 0.5, 0.75, 1].map((pct: number, i: number) => {
           const p = points[0].price + pct * (points[points.length - 1].price - points[0].price);
           const x = xScale(p);
           return (
@@ -225,8 +365,8 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
 
         {/* Y-Axis */}
         <line x1={width - margin + 10} y1={margin} x2={width - margin + 10} y2={height - margin} stroke="#1e293b" strokeWidth="1" />
-        {[1, 0.5, 0, -0.5, -1].map((pct, i) => {
-          const pnl = maxPnL * pct;
+        {[1, 0.5, 0, -0.5, -1].map((pct: number, i: number) => {
+          const pnl = maxPnLScale * pct;
           const y = yScale(pnl);
           return (
             <g key={`y-axis-${i}`}>
@@ -249,13 +389,13 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
            <div>
              <span className="text-[9px] text-gray-600 block uppercase font-bold">Max Profit</span>
              <span className="text-xs font-mono text-emerald-400 font-bold">
-               {maxPnL > 100 ? 'Uncapped' : `$${(Math.max(...points.map(p => p.pnl))).toFixed(2)}`}
+               {maxPnLValue > 1000 ? 'Uncapped' : `$${maxPnLValue.toFixed(2)}`}
              </span>
            </div>
            <div>
              <span className="text-[9px] text-gray-600 block uppercase font-bold">Max Loss</span>
              <span className="text-xs font-mono text-rose-400 font-bold">
-               {Math.min(...points.map(p => p.pnl)) < -100 ? 'Uncapped' : `$${Math.abs(Math.min(...points.map(p => p.pnl))).toFixed(2)}`}
+               {minPnL >= 0 ? '$0.00' : minPnL < -1000 ? 'Uncapped' : `$${Math.abs(minPnL).toFixed(2)}`}
              </span>
            </div>
         </div>

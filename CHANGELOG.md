@@ -43,13 +43,15 @@ All notable changes to this project will be documented in this file.
 ## [2026-03-11]
 
 ### Added
-- **Interactive Asset Charts:**
+- **Interactive Asset Charts (Final Polish):**
     - High-performance **TradingView Lightweight Charts™** integration for all core ETFs.
     - Dynamic timeframe switching: **1 Day (intraday)**, **1 Month**, and **3 Month** historical views.
     - **Fullscreen Analysis Mode:** Enhanced immersive view with dynamic scaling and true edge-to-edge layout.
 - **Trade Payoff Diagrams (Analysis Curve © EXP):**
     - Interactive P&L diagrams for all trade recommendations, mirroring **TastyTrade's** analysis platform.
     - Visualizes profit/loss zones, breakeven points, and strike markers.
+    - **Smart Auto-Scaling**: Implemented intelligent X and Y axis framing. X-axis now centers on strikes and premium breakevens with a minimum 5% price floor. Y-axis fits the specific trade's P/L peak to fill the chart vertically without "stretching thin".
+    - **Ultra-Zoom Stability**: Optimized SVG path logic and added division-by-zero guards to maintain chart rendering at 200x magnification levels.
 - **Real Options API Integration (Alpaca v1beta1):**
     - Dynamic fetching of exact Options Clearing Corporation (OCC) symbols for actionable strikes based on AI targets.
     - Multi-leg (`mleg`) Alpaca POST payloads allowing exact API execution of Spreads, Iron Condors, and Straddles.
@@ -70,3 +72,5 @@ All notable changes to this project will be documented in this file.
 - **Recommendation Filter Bug:** Fixed a critical issue where the `side` field was stripped from API responses by explicitly adding it to the `TradeRecommendation` Pydantic model in `backend/main.py`.
 - **Alpaca API Key Typo:** Removed rogue `y` prefix from `ALPACA_API_KEY` in the `.env` file, resolving 401 Unauthorized errors and restoring the real-time Alpaca data feed.
 - **Order Button & Trade Logic:** Fixed an issue where the "Order" button failed silently. The frontend now displays descriptive error messages from the backend (e.g., "insufficient buying power"). Corrected backend logic to respect the recommendation's `side` (BUY/SELL) and introduced strategy-based mapping (v1) to ensure bullish strategies (like Put Credit Spreads) are executed as "buy" orders to avoid shorting errors.
+- **Strategy Chart Zoom Instability**: Fixed a critical division-by-zero bug in the SVG shader that caused charts to disappear at deep zoom levels. Resolved a UI conflict where clicking zoom buttons inadvertently closed parent modals by implementing event propagation stopping (`e.stopPropagation()`).
+- **Payoff Chart Typings**: Resolved over 50 TypeScript linting errors in `StrategyPayoff.tsx` by adding explicit event and data types for all React hooks and SVG elements.
