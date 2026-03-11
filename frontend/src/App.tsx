@@ -3,20 +3,42 @@ import { MarketHealth } from './components/MarketHealth';
 import { Recommendations } from './components/Recommendations';
 import { ETFScanner } from './components/ETFScanner';
 import { NewsFeed } from './components/NewsFeed';
-import { Briefcase, Activity, LayoutDashboard, Newspaper } from 'lucide-react';
+import { Briefcase, Activity, LayoutDashboard, Newspaper, XCircle, Trash2 } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'news' | 'portfolio'>('dashboard');
-  const [trades, setTrades] = useState([]);
+  const [trades, setTrades] = useState<any[]>([]);
+
+  const fetchTrades = () => {
+    fetch('http://localhost:8000/trades')
+      .then(res => res.json())
+      .then(data => setTrades(data))
+      .catch(err => console.error(err));
+  };
 
   useEffect(() => {
     if (activeTab === 'portfolio') {
-      fetch('http://localhost:8000/trades')
-        .then(res => res.json())
-        .then(data => setTrades(data))
-        .catch(err => console.error(err));
+      fetchTrades();
     }
   }, [activeTab]);
+
+  const handleClosePosition = async (id: number) => {
+    try {
+      await fetch(`http://localhost:8000/trades/${id}/close`, { method: 'POST' });
+      fetchTrades();
+    } catch (error) {
+      console.error('Error closing position:', error);
+    }
+  };
+
+  const handleDeletePosition = async (id: number) => {
+    try {
+      await fetch(`http://localhost:8000/trades/${id}`, { method: 'DELETE' });
+      fetchTrades();
+    } catch (error) {
+      console.error('Error deleting position:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-gray-200 font-sans selection:bg-blue-500/30 overflow-x-hidden">
@@ -108,7 +130,8 @@ function App() {
                         <th className="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Strategy</th>
                         <th className="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Position Size</th>
                         <th className="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Entry Date</th>
-                        <th className="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider rounded-tr-xl">Status</th>
+                        <th className="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                        <th className="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right rounded-tr-xl">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -123,6 +146,24 @@ function App() {
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               {t.status}
                             </span>
+                          </td>
+                          <td className="py-5 px-6 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleClosePosition(t.id)}
+                                title="Close Position"
+                                className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePosition(t.id)}
+                                title="Delete Position"
+                                className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -97,3 +97,25 @@ def execute_paper_trade(trade: TradeCreate, db: Session = Depends(get_db)):
 def get_open_trades(db: Session = Depends(get_db)):
     trades = db.query(models.TradeHistory).filter(models.TradeHistory.status == "OPEN").all()
     return trades
+
+@app.delete("/trades/{trade_id}", response_model=dict)
+def delete_paper_trade(trade_id: int, db: Session = Depends(get_db)):
+    trade = db.query(models.TradeHistory).filter(models.TradeHistory.id == trade_id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    
+    db.delete(trade)
+    db.commit()
+    return {"message": "Trade deleted successfully"}
+
+@app.post("/trades/{trade_id}/close", response_model=TradeResponse)
+def close_paper_trade(trade_id: int, db: Session = Depends(get_db)):
+    trade = db.query(models.TradeHistory).filter(models.TradeHistory.id == trade_id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    
+    trade.status = "CLOSED"
+    trade.closed_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(trade)
+    return trade
