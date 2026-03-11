@@ -4,18 +4,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure Gemini
-api_key = os.getenv("GOOGLE_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-else:
-    model = None
+# Default model if none specified
+DEFAULT_MODEL = "gemini-flash-latest"
 
-def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str) -> dict:
+def _get_model(model_name: str = None):
+    """Helper to get a GenerativeModel instance."""
+    name = model_name or DEFAULT_MODEL
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+    
+    try:
+        genai.configure(api_key=api_key)
+        # Handle cases where model_name might not have 'models/' prefix
+        if not name.startswith("models/"):
+            # Some common aliases
+            if name == "gemini-1.5-flash": name = "gemini-1.5-flash-latest"
+            if name == "gemini-1.5-pro": name = "gemini-1.5-pro"  # pro-latest can be finicky in some tiers
+            if name == "gemini-2.0-flash": name = "gemini-2.0-flash"
+        
+        return genai.GenerativeModel(name)
+    except Exception as e:
+        print(f"Error initializing model {name}: {e}")
+        return None
+
+def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_name: str = None) -> dict:
     """
     Uses Gemini to synthesize market data and news into a concise 'Pulse'.
     """
+    model = _get_model(model_name)
     if not model:
         return {
             "verdict": "Neutral",
@@ -57,10 +74,11 @@ def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str) -> dict:
             "suggested_play": "Iron Condor"
         }
 
-def get_research_response(symbol: str, question: str, context: str) -> str:
+def get_research_response(symbol: str, question: str, context: str, model_name: str = None) -> str:
     """
     Streams or returns a research response for a specific question given symbol context.
     """
+    model = _get_model(model_name)
     if not model:
         return "Gemini API key not configured."
 

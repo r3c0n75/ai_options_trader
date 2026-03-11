@@ -71,9 +71,9 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
         </div>
 
         {/* Content Grid */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
           {/* Main Content Area */}
-          <div className="lg:col-span-8 overflow-y-auto p-8 space-y-8 scrollbar-thin scrollbar-thumb-gray-800">
+          <div className="lg:col-span-8 overflow-y-auto p-8 space-y-8 scrollbar-thin scrollbar-thumb-gray-800 min-h-0">
             {/* AI Pulse Card */}
             <div className="bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">

@@ -101,9 +101,10 @@ class TradeResponse(BaseModel):
 class ChatRequest(BaseModel):
     question: str
     context: str = ""
+    model: str = "gemini-flash-latest"
 
 @app.get("/analysis/{symbol}")
-def get_symbol_analysis(symbol: str):
+async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
     try:
         from data_fetcher import get_stock_bars, get_financial_news
         # Get latest price info
@@ -115,9 +116,9 @@ def get_symbol_analysis(symbol: str):
         # Get news
         news = get_financial_news(limit=5)
         headlines = " | ".join([n['headline'] for n in news])
-        
-        # Get AI Vibe
-        vibe = get_symbol_vibe(symbol, {"price": latest_price, "change_percent": round(change_pct, 2)}, headlines)
+        # Synthesize vibe
+        from ai_engine import get_symbol_vibe
+        vibe = get_symbol_vibe(symbol, {"price": latest_price, "change_percent": round(change_pct, 2)}, headlines, model_name=model)
         
         return {
             "symbol": symbol,
@@ -130,10 +131,11 @@ def get_symbol_analysis(symbol: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/chat/{symbol}")
-def chat_symbol_research(symbol: str, request: ChatRequest):
+async def chat_symbol(symbol: str, request: ChatRequest):
     try:
-        answer = get_research_response(symbol, request.question, request.context)
-        return {"answer": answer}
+        from ai_engine import get_research_response
+        response = get_research_response(symbol, request.question, request.context, model_name=request.model)
+        return {"answer": response}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

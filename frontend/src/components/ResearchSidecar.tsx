@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles, MessageSquare, History } from 'lucide-react';
+import { Send, User, Bot, Loader2, Sparkles, MessageSquare, History, ChevronDown } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -12,11 +12,23 @@ interface ResearchSidecarProps {
   context: string;
 }
 
+const MODELS = [
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'SOTA Reasoning (Preview)' },
+  { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite', desc: 'Ultra-fast Next Gen' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro', desc: 'Highly Capable (Preview)' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Default Capable' },
+  { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', desc: 'Stable Reasoning' },
+  { id: 'gemini-flash-latest', name: 'Gemini 1.5 Flash', desc: 'Stable legacy Speed' },
+];
+
 export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, context }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(MODELS[0]);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Initial welcome message
@@ -28,71 +40,114 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
     ]);
   }, [symbol]);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
     const userMsg = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setMessages((prev: Message[]) => [...prev, { role: 'user', content: userMsg }]);
     setIsLoading(true);
 
     try {
       const response = await fetch(`http://localhost:8000/chat/${symbol}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: userMsg, context: context })
+        body: JSON.stringify({ 
+          question: userMsg, 
+          context: context,
+          model: selectedModel.id
+        })
       });
 
       const data = await response.json();
       if (response.ok) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
+        setMessages((prev: Message[]) => [...prev, { role: 'assistant', content: data.answer }]);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I encountered an error researching that. Please try again." }]);
+        setMessages((prev: Message[]) => [...prev, { role: 'assistant', content: "Sorry, I encountered an error researching that. Please try again." }]);
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "Network error. Could not connect to the AI engine." }]);
+      setMessages((prev: Message[]) => [...prev, { role: 'assistant', content: "Network error. Could not connect to the AI engine." }]);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
-      <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/40">
+    <div className="flex flex-col h-full bg-gray-950 border border-gray-800/50 rounded-2xl overflow-hidden shadow-2xl relative">
+      {/* Header with Model Selector */}
+      <div className="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between bg-gray-900/20 backdrop-blur-sm z-20">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-blue-500" />
-          <h3 className="font-bold text-white text-sm">Deep Research: {symbol}</h3>
+          <MessageSquare className="w-4 h-4 text-blue-500" />
+          <h3 className="font-bold text-white text-[13px] tracking-tight">Deep Research: {symbol}</h3>
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 rounded-md border border-blue-500/20 text-[10px] font-bold text-blue-400">
-          <Sparkles className="w-3 h-3" />
-          GEMINI 1.5
+        
+        <div className="relative">
+          <button 
+            onClick={() => setShowModelDropdown(!showModelDropdown)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 text-[10px] font-bold text-blue-400 transition-all group"
+          >
+            <Sparkles className="w-3 h-3 transition-transform group-hover:scale-110" />
+            {selectedModel.name.toUpperCase()}
+            <ChevronDown className={`w-3 h-3 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showModelDropdown && (
+            <>
+              <div 
+                className="fixed inset-0 z-10" 
+                onClick={() => setShowModelDropdown(false)} 
+              />
+              <div className="absolute right-0 mt-2 w-56 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-30 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-2 space-y-1">
+                  {MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        setSelectedModel(m);
+                        setShowModelDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-all flex flex-col gap-0.5
+                        ${selectedModel.id === m.id ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-800 text-gray-400'}
+                      `}
+                    >
+                      <span className="text-[11px] font-bold">{m.name}</span>
+                      <span className="text-[9px] opacity-60 font-medium">{m.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
+      {/* Messages Container */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-gray-800"
+        className="flex-1 overflow-y-auto p-5 space-y-6 scroll-smooth scrollbar-thin scrollbar-thumb-gray-800/50"
       >
-        {messages.map((m, i) => (
-          <div key={i} className={`flex gap-4 ${m.role === 'assistant' ? 'items-start' : 'items-start flex-row-reverse'}`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border 
+        {messages.map((m: Message, i: number) => (
+          <div key={i} className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === 'assistant' ? 'items-start' : 'items-start flex-row-reverse'}`}>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border shadow-sm
               ${m.role === 'assistant' 
                 ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' 
                 : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
               }`}
             >
-              {m.role === 'assistant' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              {m.role === 'assistant' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
             </div>
-            <div className={`flex flex-col gap-1 max-w-[85%] ${m.role === 'user' ? 'items-end' : ''}`}>
-              <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm
+            <div className={`flex flex-col gap-1 max-w-[88%] ${m.role === 'user' ? 'items-end' : ''}`}>
+              <div className={`px-4 py-3 rounded-2xl text-[13px] leading-relaxed shadow-lg backdrop-blur-sm
                 ${m.role === 'assistant' 
-                  ? 'bg-gray-900 text-gray-200 border border-gray-800 rounded-tl-none' 
+                  ? 'bg-gray-900/80 text-gray-200 border border-gray-800/50 rounded-tl-none' 
                   : 'bg-blue-600 text-white rounded-tr-none'
                 }`}
               >
@@ -102,12 +157,12 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
           </div>
         ))}
         {isLoading && (
-          <div className="flex gap-4 items-start">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center transition-pulse">
-              <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex gap-3 items-start animate-pulse">
+            <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             </div>
-            <div className="bg-gray-900 border border-gray-800 px-4 py-3 rounded-2xl rounded-tl-none">
-              <div className="flex gap-1">
+            <div className="bg-gray-900/50 border border-gray-800/50 px-4 py-2.5 rounded-2xl rounded-tl-none">
+              <div className="flex gap-1.5">
                 <div className="w-1.5 h-1.5 bg-blue-500/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
                 <div className="w-1.5 h-1.5 bg-blue-500/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
                 <div className="w-1.5 h-1.5 bg-blue-500/50 rounded-full animate-bounce" />
@@ -115,10 +170,12 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-gray-900/40 border-t border-gray-800">
-        <div className="relative">
+      {/* Input Area */}
+      <div className="p-4 bg-gray-900/40 border-t border-gray-800/50">
+        <div className="relative group">
           <textarea
             rows={1}
             value={input}
@@ -129,20 +186,20 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
                 handleSend();
               }
             }}
-            placeholder="Ask Gemini about this ticker..."
-            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none transition-all resize-none"
+            placeholder={`Ask ${selectedModel.name.split(' ')[0]}...`}
+            className="w-full bg-gray-950/80 border border-gray-800/50 rounded-xl px-4 py-3 pr-12 text-[13px] text-white placeholder-gray-600 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all resize-none shadow-inner"
           />
           <button 
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 top-2 p-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 text-white rounded-lg transition-all"
+            className="absolute right-2 top-2 p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-20 disabled:hover:bg-blue-600 text-white rounded-lg transition-all shadow-lg active:scale-95"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="mt-2 text-[10px] text-gray-600 text-center flex items-center justify-center gap-1">
-          <History className="w-3 h-3" />
-          Gemini has access to current news and technical data.
+        <div className="mt-3 text-[10px] text-gray-600 text-center flex items-center justify-center gap-2">
+          <History className="w-3 h-3 opacity-50" />
+          <span>Real-time market context powered by {selectedModel.name}</span>
         </div>
       </div>
     </div>
