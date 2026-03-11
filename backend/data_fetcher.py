@@ -213,10 +213,24 @@ def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> 
             start = (now - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
             timeframe_adj = "1Day"
 
-        url = f"{ALPACA_STOCKS_URL}/bars?symbols={symbol}&timeframe={timeframe_adj}&start={start}&limit=1000&adjustment=all&sort=asc"
+        # Explicitly request IEX feed for free tier and sort DESC to get LATEST bars first
+        url = f"{ALPACA_STOCKS_URL}/bars?symbols={symbol}&timeframe={timeframe_adj}&start={start}&limit=1000&adjustment=all&sort=desc&feed=iex"
         response = httpx.get(url, headers=get_headers())
+        
         if response.status_code == 200:
-            data = response.json().get('bars', {}).get(symbol, [])
+            raw_bars = response.json().get('bars', {}).get(symbol, [])
+            if not raw_bars:
+                return _yfinance_bars_fallback(symbol, period)
+
+            # Sort back to ASC for charting
+            raw_bars.sort(key=lambda x: x['t'])
+            
+            # Check for staleness: if the latest bar is older than 3 days, it's likely the IEX feed is frozen
+            latest_bar_time = datetime.fromisoformat(raw_bars[-1]['t'].replace('Z', '+00:00'))
+            if (datetime.now(latest_bar_time.tzinfo) - latest_bar_time).days > 3:
+                print(f"Alpaca data for {symbol} is stale (last: {latest_bar_time}), falling back to yfinance.")
+                return _yfinance_bars_fallback(symbol, period)
+
             return [
                 {
                     "time": item['t'],
@@ -225,7 +239,7 @@ def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> 
                     "low": float(item['l']),
                     "close": float(item['c']),
                     "volume": int(item['v'])
-                } for item in data
+                } for item in raw_bars
             ]
         return _yfinance_bars_fallback(symbol, period)
     except Exception as e:
