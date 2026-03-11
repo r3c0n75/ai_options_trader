@@ -172,9 +172,10 @@ def get_market_health():
     return evaluate_market_health()
 
 @app.get("/scanner")
-def get_etf_scanner_data():
+def get_etf_scanner_data(symbols: str = None):
     from data_fetcher import get_macro_etfs
-    return get_macro_etfs()
+    symbol_list = symbols.split(",") if symbols else None
+    return get_macro_etfs(symbols=symbol_list)
 
 @app.get("/news")
 def get_news_feed():

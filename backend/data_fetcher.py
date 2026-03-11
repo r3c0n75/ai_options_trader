@@ -18,7 +18,7 @@ ALPACA_STOCKS_URL = "https://data.alpaca.markets/v2/stocks"
 # Alpaca News API
 ALPACA_NEWS_URL = "https://data.alpaca.markets/v1beta1/news"
 
-MACRO_BASKET = ["SPY", "QQQ", "IWM", "USO", "GLD", "TMF", "BND"]
+MACRO_BASKET = ["SPY", "QQQ", "IWM", "GLD", "TMF", "BND"]
 
 def get_headers():
     return {
@@ -134,7 +134,6 @@ def get_options_chain(symbol: str = "SPY"):
                 'expiration': c['expiration_date'],
                 'type': 'put'
             })
-
         return {
             "expiration": nearest_expiry, 
             "current_price": current_price,
@@ -173,14 +172,17 @@ def _yfinance_options_fallback(symbol: str, current_price: float):
         }
     except Exception:
         return None
-def get_macro_etfs() -> dict:
+
+def get_macro_etfs(symbols: list = None) -> dict:
     """Fetches a snapshot of the core macro basket (prices and daily change)."""
+    basket = symbols if symbols else MACRO_BASKET
+    
     if not ALPACA_API_KEY:
-        return _yfinance_macro_fallback()
+        return _yfinance_macro_fallback(basket)
 
     try:
         # Alpaca Multi-Stock Snapshot
-        url = f"{ALPACA_STOCKS_URL}/snapshots?symbols={','.join(MACRO_BASKET)}"
+        url = f"{ALPACA_STOCKS_URL}/snapshots?symbols={','.join(basket)}"
         response = httpx.get(url, headers=get_headers())
         if response.status_code == 200:
             data = response.json()
@@ -205,15 +207,15 @@ def get_macro_etfs() -> dict:
                 })
             
             if not results:
-               return _yfinance_macro_fallback() 
+               return _yfinance_macro_fallback(basket) 
 
-            order = {sym: index for index, sym in enumerate(MACRO_BASKET)}
+            order = {sym: index for index, sym in enumerate(basket)}
             results.sort(key=lambda x: order.get(x['symbol'], 999))
             return {"feed": "Alpaca Markets", "data": results}
-        return _yfinance_macro_fallback()
+        return _yfinance_macro_fallback(basket)
     except Exception as e:
         print(f"Error fetching ETF snapshots from Alpaca: {e}")
-        return _yfinance_macro_fallback()
+        return _yfinance_macro_fallback(basket)
 
 def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> list:
     """Fetches historical OHLC bar data for a stock symbol."""
@@ -288,9 +290,10 @@ def _yfinance_bars_fallback(symbol: str, period: str) -> list:
         print(f"Error fetching bars from yfinance fallback: {e}")
         return []
 
-def _yfinance_macro_fallback() -> dict:
+def _yfinance_macro_fallback(symbols: list = None) -> dict:
     results = []
-    for symbol in MACRO_BASKET:
+    basket = symbols if symbols else MACRO_BASKET
+    for symbol in basket:
         try:
             ticker = yf.Ticker(symbol)
             data = ticker.history(period="2d") # Need 2 days to get previous close

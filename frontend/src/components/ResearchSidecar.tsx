@@ -1,5 +1,4 @@
-import * as React from 'react';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, User, Bot, Loader2, Sparkles, MessageSquare, History, ChevronDown } from 'lucide-react';
 
 interface Message {
@@ -13,12 +12,10 @@ interface ResearchSidecarProps {
 }
 
 const MODELS = [
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'SOTA Reasoning (Preview)' },
-  { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite', desc: 'Ultra-fast Next Gen' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro', desc: 'Highly Capable (Preview)' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Default Capable' },
-  { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', desc: 'Stable Reasoning' },
-  { id: 'gemini-flash-latest', name: 'Gemini 1.5 Flash', desc: 'Stable legacy Speed' },
+  { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash', desc: 'Fast & Reliable (Best for Free Tier)' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Next-Gen Speed (Higher Quota required)' },
+  { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', desc: 'Complex Reasoning' },
+  { id: 'gemini-2.0-flash-thinking-exp', name: 'Gemini 2.0 Thinking', desc: 'Advanced Logic (Experimental)' },
 ];
 
 export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, context }) => {

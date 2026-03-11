@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Network, TrendingUp, TrendingDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Network, TrendingUp, TrendingDown, Settings2, Plus, X, RotateCcw } from 'lucide-react';
 
 interface ETFData {
   symbol: string;
@@ -11,28 +11,62 @@ interface ETFScannerProps {
   onSelect?: (symbol: string) => void;
 }
 
+const DEFAULT_ASSETS = ["SPY", "QQQ", "IWM", "GLD", "TMF", "BND"];
+
 export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
   const [data, setData] = useState<ETFData[]>([]);
   const [feed, setFeed] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newSymbol, setNewSymbol] = useState('');
+  
+  // Load symbols from localStorage or use defaults
+  const [symbols, setSymbols] = useState<string[]>(() => {
+    const saved = localStorage.getItem('macro_scanner_symbols');
+    return saved ? JSON.parse(saved) : DEFAULT_ASSETS;
+  });
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8000/scanner?symbols=${symbols.join(',')}`);
+      const json = await response.json();
+      if (json.data && Array.isArray(json.data)) {
+          setData(json.data);
+          setFeed(json.feed || 'Unknown');
+      } else {
+          setData(json);
+      }
+    } catch (err) {
+      console.error("Failed to fetch scanner data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetch('http://localhost:8000/scanner')
-      .then(res => res.json())
-      .then(json => {
-        if (json.data && Array.isArray(json.data)) {
-            setData(json.data);
-            setFeed(json.feed || 'Unknown');
-        } else {
-            setData(json);
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Failed to fetch scanner data:", err);
-        setLoading(false);
-      });
-  }, []);
+    fetchData();
+    // Save to localStorage whenever symbols change
+    localStorage.setItem('macro_scanner_symbols', JSON.stringify(symbols));
+  }, [symbols]);
+
+  const handleAddSymbol = (e: React.FormEvent) => {
+    e.preventDefault();
+    const sym = newSymbol.trim().toUpperCase();
+    if (sym && !symbols.includes(sym)) {
+      setSymbols([...symbols, sym]);
+      setNewSymbol('');
+    }
+  };
+
+  const handleRemoveSymbol = (sym: string) => {
+    setSymbols(symbols.filter(s => s !== sym));
+  };
+
+  const handleReset = () => {
+    setSymbols(DEFAULT_ASSETS);
+    setIsEditing(false);
+  };
 
   const handleClick = (symbol: string) => {
     if (onSelect) {
@@ -40,8 +74,7 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
     }
   };
 
-  if (loading) return <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800 animate-pulse h-64"></div>;
-  if (!data || data.length === 0) return <div className="text-red-500">Error loading ETF scanner data</div>;
+  if (loading && data.length === 0) return <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800 animate-pulse h-64"></div>;
 
   return (
     <div className="p-6 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800 shadow-xl relative overflow-hidden h-full flex flex-col">
@@ -60,27 +93,84 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
             )}
           </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsEditing(!isEditing)}
+            className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+            title="Edit Assets"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
+          <div className="flex gap-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Scanning</span>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1">
-        {data.map((etf) => {
+      {isEditing && (
+        <div className="mb-6 p-4 rounded-xl bg-gray-800/50 border border-indigo-500/20 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Manage Assets</span>
+            <button 
+              onClick={handleReset}
+              className="text-[10px] flex items-center gap-1 text-gray-500 hover:text-indigo-400 transition-colors uppercase font-bold"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset Defaults
+            </button>
+          </div>
+          <form onSubmit={handleAddSymbol} className="flex gap-2">
+            <input 
+              type="text" 
+              value={newSymbol}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewSymbol(e.target.value)}
+              placeholder="Add Ticker (e.g. BTC)"
+              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+            <button 
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white p-1.5 rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </form>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+        {data.map((etf: ETFData) => {
           const isPositive = etf.change_pct >= 0;
           return (
             <div 
               key={etf.symbol} 
-              onClick={() => handleClick(etf.symbol)}
               className={`p-4 rounded-xl border transition-all duration-300 relative group overflow-hidden cursor-pointer
                 ${isPositive ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10' : 'bg-red-500/5 border-red-500/20 hover:bg-red-500/10'}
               `}
+              onClick={() => {
+                if (!isEditing) {
+                  handleClick(etf.symbol);
+                }
+              }}
             >
+              {isEditing && (
+                <button 
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    handleRemoveSymbol(etf.symbol);
+                  }}
+                  className="absolute top-2 right-2 z-20 p-1 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-md transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              
               {/* Subtle gradient flash on hover */}
-              <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500
-                ${isPositive ? 'bg-gradient-to-br from-emerald-400 to-transparent' : 'bg-gradient-to-br from-red-400 to-transparent'}
-              `} />
+              {!isEditing && (
+                <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500
+                  ${isPositive ? 'bg-gradient-to-br from-emerald-400 to-transparent' : 'bg-gradient-to-br from-red-400 to-transparent'}
+                `} />
+              )}
               
               <div className="flex justify-between items-center mb-2 relative z-10">
                 <span className="font-bold text-gray-200">{etf.symbol}</span>
@@ -93,6 +183,9 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
             </div>
           );
         })}
+        {loading && data.length > 0 && <div className="absolute inset-0 bg-gray-900/20 backdrop-blur-[1px] flex items-center justify-center rounded-2xl z-50">
+          <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>}
       </div>
     </div>
   );

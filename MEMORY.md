@@ -9,6 +9,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 *   **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
+* **Gemini-Powered Research Assistant**: Integrated a conversational sidecar in the analysis view. Supported by multi-model selection (Flash, Pro, Thinking) with automated fallback logic in the backend to handle quota limits.
+* **Dynamic Macro Scanner**: Added editability to the core ETF basket. Users can add/remove assets, with persistence in `localStorage` and a "Reset to Defaults" feature.
 * **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for 1D, 1M, and 3M intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing.
 * **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions and active portfolio positions (Long Stock, Options Spreads), complete with X and Y axes for price and profit mapping.
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
@@ -39,5 +41,6 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
 
 ## Next Steps
-* Enhance AI suggestions with an LLM (currently hardcoded conditional logic based on VIX).
+## Next Steps
+* Implement real-time websocket updates for the macro scanner.
 * Add technical analysis indicators (RSI, MACD, Volume) as overlays to the Symbol Charts.

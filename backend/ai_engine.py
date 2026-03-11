@@ -17,13 +17,19 @@ def _get_model(model_name: str = None):
     try:
         genai.configure(api_key=api_key)
         # Handle cases where model_name might not have 'models/' prefix
-        if not name.startswith("models/"):
-            # Some common aliases
-            if name == "gemini-1.5-flash": name = "gemini-1.5-flash-latest"
-            if name == "gemini-1.5-pro": name = "gemini-1.5-pro"  # pro-latest can be finicky in some tiers
-            if name == "gemini-2.0-flash": name = "gemini-2.0-flash"
-        
-        return genai.GenerativeModel(name)
+        model_id = name
+        if not model_id.startswith("models/"):
+            # Normalize common names to specific IDs
+            if "gemini-1.5-flash" in model_id: model_id = "gemini-1.5-flash-latest"
+            elif "gemini-1.5-pro" in model_id: model_id = "gemini-1.5-pro-latest"
+            elif "gemini-2.0-flash-thinking" in model_id: model_id = "gemini-2.0-flash-thinking-exp"
+            elif "gemini-2.0-flash" in model_id: model_id = "gemini-2.0-flash"
+            
+        try:
+            return genai.GenerativeModel(model_id)
+        except:
+            # Fallback to absolute default if specific model is rejected
+            return genai.GenerativeModel(DEFAULT_MODEL)
     except Exception as e:
         print(f"Error initializing model {name}: {e}")
         return None
