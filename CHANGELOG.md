@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
     - Updated `alpaca_trading.py` to support dynamic `ratio_qty` in option order payloads.
 
 ### Fixed
-- **Strategy Payoff Inversion**: Corrected a logical bug in `StrategyPayoff.tsx` where P/L calculations were case-sensitive. Long positions now correctly show a loss area at the strike price, and the profit/loss zones are mapped accurately based on standardized `BUY`/`SELL` and `CALL`/`PUT` identifiers.
+- **Strategy Payoff Inversion (Final)**: Implemented an exhaustive normalization layer in `StrategyPayoff.tsx` that handles multiple side/type identifiers (BUY, LONG, B, etc.) case-insensitively. This ensures that P/L calculations no longer default to 'SELL' logic when encountering slightly varied data formats, correctly rendering profit/loss zones for all strategies.
 - **Frontend Typings:** Resolved several TypeScript compilation errors in the new modal component (TS1259 default-import mismatch and TS6133 unused imports).
 - **Implicit Any Errors:** Added explicit TypeScript interfaces to `map` functions within React components to satisfy strict `tsc` requirements.
 

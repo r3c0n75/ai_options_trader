@@ -22,29 +22,37 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
 
   // Calculate P&L for a single price point
   const calculatePnL = (price: number) => {
-    return legs.reduce((total: number, leg: StrategyLeg) => {
-      const side = leg.side.toUpperCase();
-      const type = leg.type.toUpperCase();
+    return (legs || []).reduce((total: number, leg: StrategyLeg) => {
+      // Robust normalization of side and type
+      const sideRaw = (leg.side || '').toString().toUpperCase().trim();
+      const typeRaw = (leg.type || '').toString().toUpperCase().trim();
+      
+      const isLong = sideRaw === 'BUY' || sideRaw === 'LONG' || sideRaw === 'B';
+      const isStock = typeRaw === 'STOCK' || typeRaw === 'EQUITY';
+      const isCall = typeRaw === 'CALL' || typeRaw === 'C';
+      const isPut = typeRaw === 'PUT' || typeRaw === 'P';
 
-      if (type === 'STOCK') {
-        if (side === 'BUY') {
+      if (isStock) {
+        if (isLong) {
           return total + (price - leg.premium);
         } else {
           return total + (leg.premium - price);
         }
       }
 
-      let pnl = 0;
-      if (type === 'CALL') {
-        pnl = Math.max(0, price - leg.strike);
-      } else if (type === 'PUT') {
-        pnl = Math.max(0, leg.strike - price);
+      let intrinsic = 0;
+      if (isCall) {
+        intrinsic = Math.max(0, price - leg.strike);
+      } else if (isPut) {
+        intrinsic = Math.max(0, leg.strike - price);
       }
 
-      if (side === 'BUY') {
-        return total + (pnl - leg.premium);
+      if (isLong) {
+        // Long P&L = Intrinsic Value - Premium Paid
+        return total + (intrinsic - leg.premium);
       } else {
-        return total + (leg.premium - pnl);
+        // Short P&L = Premium Received - Intrinsic Value
+        return total + (leg.premium - intrinsic);
       }
     }, 0);
   };
