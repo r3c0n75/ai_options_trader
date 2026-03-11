@@ -1,0 +1,150 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
+import { Maximize2, Minimize2, Clock, Calendar } from 'lucide-react';
+
+interface SymbolChartProps {
+  symbol: string;
+  onClose?: () => void;
+}
+
+export const SymbolChart: React.FC<SymbolChartProps> = ({ symbol, onClose }) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const [period, setPeriod] = useState<'1D' | '1M' | '3M'>('3M');
+  const [loading, setLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#94a3b8',
+      },
+      grid: {
+        vertLines: { color: '#1e293b' },
+        horzLines: { color: '#1e293b' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+      timeScale: {
+        borderColor: '#334155',
+        timeVisible: true,
+      },
+    });
+
+    const series = chart.addCandlestickSeries({
+      upColor: '#10b981',
+      downColor: '#f43f5e',
+      borderVisible: false,
+      wickUpColor: '#10b981',
+      wickDownColor: '#f43f5e',
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = series;
+
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:8000/stocks/${symbol}/bars?period=${period}`);
+        const data = await response.json();
+        
+        if (seriesRef.current && Array.isArray(data)) {
+          const formattedData = data.map(item => ({
+            time: (new Date(item.time).getTime() / 1000),
+            open: item.open,
+            high: item.high,
+            low: item.low,
+            close: item.close,
+          })).sort((a, b) => a.time - b.time);
+          
+          seriesRef.current.setData(formattedData as CandlestickData[]);
+          chartRef.current?.timeScale().fitContent();
+        }
+      } catch (error) {
+        console.error('Error fetching bar data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [symbol, period]);
+
+  return (
+    <div className={`bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 ${isFullscreen ? 'fixed inset-4 z-50' : 'relative'}`}>
+      <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/40">
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-xl font-black text-white flex items-center gap-2">
+              <span className="text-blue-400">{symbol}</span> Historical Data
+            </h2>
+            <div className="flex items-center gap-4 mt-1">
+              <div className="flex bg-black/40 p-1 rounded-lg border border-gray-800">
+                {(['1D', '1M', '3M'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase transition-all ${period === p ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white'}`}
+                  >
+                    {p === '1D' ? <Clock className="w-3 h-3 inline mr-1" /> : <Calendar className="w-3 h-3 inline mr-1" />}
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-2 text-gray-500 hover:text-white transition-colors"
+          >
+            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+          </button>
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="p-2 text-gray-500 hover:text-rose-400 transition-colors"
+            >
+              <Maximize2 className="w-5 h-5 rotate-45" /> {/* Close icon via rotate */}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="relative">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-900/20 backdrop-blur-[2px]">
+            <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+          </div>
+        )}
+        <div ref={chartContainerRef} className="w-full" style={{ height: isFullscreen ? 'calc(100vh - 120px)' : '400px' }} />
+      </div>
+      
+      <div className="p-3 bg-gray-950/20 text-[10px] text-gray-600 font-mono flex justify-between">
+        <span>TradingView™ Lightweight Charts</span>
+        <span>Interactive View • {period} Interval</span>
+      </div>
+    </div>
+  );
+};

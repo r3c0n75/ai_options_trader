@@ -7,7 +7,11 @@ interface ETFData {
   change_pct: number;
 }
 
-export const ETFScanner: React.FC = () => {
+interface ETFScannerProps {
+  onSelect?: (symbol: string) => void;
+}
+
+export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
   const [data, setData] = useState<ETFData[]>([]);
   const [feed, setFeed] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -29,6 +33,12 @@ export const ETFScanner: React.FC = () => {
         setLoading(false);
       });
   }, []);
+
+  const handleClick = (symbol: string) => {
+    if (onSelect) {
+      onSelect(symbol);
+    }
+  };
 
   if (loading) return <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800 animate-pulse h-64"></div>;
   if (!data || data.length === 0) return <div className="text-red-500">Error loading ETF scanner data</div>;
@@ -62,7 +72,8 @@ export const ETFScanner: React.FC = () => {
           return (
             <div 
               key={etf.symbol} 
-              className={`p-4 rounded-xl border transition-all duration-300 relative group overflow-hidden
+              onClick={() => handleClick(etf.symbol)}
+              className={`p-4 rounded-xl border transition-all duration-300 relative group overflow-hidden cursor-pointer
                 ${isPositive ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10' : 'bg-red-500/5 border-red-500/20 hover:bg-red-500/10'}
               `}
             >

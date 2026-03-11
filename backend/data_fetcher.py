@@ -195,6 +195,65 @@ def get_macro_etfs() -> dict:
         print(f"Error fetching ETF snapshots from Alpaca: {e}")
         return _yfinance_macro_fallback()
 
+def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> list:
+    """Fetches historical OHLC bar data for a stock symbol."""
+    if not ALPACA_API_KEY:
+        return _yfinance_bars_fallback(symbol, period)
+
+    try:
+        # Determine start date based on period
+        now = datetime.utcnow()
+        if period == "1D":
+            start = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            timeframe_adj = "1Min"
+        elif period == "1M":
+            start = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            timeframe_adj = "1Hour"
+        else: # 3M default
+            start = (now - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            timeframe_adj = "1Day"
+
+        url = f"{ALPACA_STOCKS_URL}/bars?symbols={symbol}&timeframe={timeframe_adj}&start={start}&limit=1000&adjustment=all&sort=asc"
+        response = httpx.get(url, headers=get_headers())
+        if response.status_code == 200:
+            data = response.json().get('bars', {}).get(symbol, [])
+            return [
+                {
+                    "time": item['t'],
+                    "open": float(item['o']),
+                    "high": float(item['h']),
+                    "low": float(item['l']),
+                    "close": float(item['c']),
+                    "volume": int(item['v'])
+                } for item in data
+            ]
+        return _yfinance_bars_fallback(symbol, period)
+    except Exception as e:
+        print(f"Error fetching bars from Alpaca: {e}")
+        return _yfinance_bars_fallback(symbol, period)
+
+def _yfinance_bars_fallback(symbol: str, period: str) -> list:
+    try:
+        ticker = yf.Ticker(symbol)
+        interval = "1m" if period == "1D" else "1h" if period == "1M" else "1d"
+        yf_period = "1d" if period == "1D" else "1mo" if period == "1M" else "3mo"
+        
+        data = ticker.history(period=yf_period, interval=interval)
+        results = []
+        for timestamp, row in data.iterrows():
+            results.append({
+                "time": timestamp.isoformat(),
+                "open": float(row['Open']),
+                "high": float(row['High']),
+                "low": float(row['Low']),
+                "close": float(row['Close']),
+                "volume": int(row['Volume'])
+            })
+        return results
+    except Exception as e:
+        print(f"Error fetching bars from yfinance fallback: {e}")
+        return []
+
 def _yfinance_macro_fallback() -> dict:
     results = []
     for symbol in MACRO_BASKET:

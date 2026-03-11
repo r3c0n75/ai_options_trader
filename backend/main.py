@@ -100,6 +100,15 @@ def get_news_feed():
     from data_fetcher import get_financial_news
     return get_financial_news(limit=10)
 
+@app.get("/stocks/{symbol}/bars")
+def get_stock_historical_bars(symbol: str, period: str = "3M"):
+    try:
+        from data_fetcher import get_stock_bars
+        bars = get_stock_bars(symbol, period=period)
+        return bars
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/recommendations", response_model=List[TradeRecommendation])
 def get_top_recommendations():
     recs = generate_recommendations()

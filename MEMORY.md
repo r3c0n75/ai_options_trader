@@ -9,11 +9,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
-* **Macro ETF Scanner**: Real-time heatmap tracking [SPY, QQQ, TMF, BND, GLD, IWM]. Shows current price, daily change, and live data feed indicator (Alpaca vs Yahoo Finance).
-* **AI Recommendations**: Analyzes VIX to determine if it is a Buyer's, Seller's, or Cash Market. Generates six diverse setups (Buying calls, Selling puts, Iron Condors, Straddles) with directional labels and AI confidence levels.
+* **Interactive Symbol Charts**: Integrated **Lightweight Charts™** into the dashboard. Clicking an asset in the Macro Scanner triggers a high-performance candlestick chart update with support for 1D, 1M, and 3M intervals.
 * **Filtering/Sorting System**: Implemented custom string parsers in the frontend to handle numeric sorting of ratios ("5:1") and percentages ("75%") in trade suggestions.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
-* **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**. The dashboard features a high-fidelity **Portfolio View** that mirrors the Alpaca web portal:
+* **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**:
     * **Equity Performance Chart**: Visualizes historical valuation data via SVG.
     * **Live Balances**: Real-time tracking of Buying Power, Cash, and Daily P/L.
     * **Order Management**: Submits real market orders (equity proxies for options), polls `OPEN` and `PENDING` states, and maintains a **Recent Orders** history for audit trails.
@@ -23,9 +22,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
 * **Pydantic Model Strictness**: In FastAPI, if a field is not explicitly defined in the Pydantic `response_model`, it will be stripped from the JSON response even if the underlying logic generates it. This caused the BUY/SELL filter bug.
 * **Data Feed Resilience**: Always implement `yfinance`-based fallback endpoints if Alpaca rate limits are hit or the `.env` API keys are invalid.
-* **Frontend File Permissions**: When installing Node dependencies via root in WSL, remember to chown `node_modules` so VS Code's TS Server can read them to prevent linting errors.
-* **Alpaca Extended/Closed Hours queueing**: Market Orders to Alpaca outside of hours return successfully, but go into a `pending / new` order state. Our dashboard must actively poll `GET /orders` to display `PENDING` actions, otherwise Trades might successfully execute in the broker without appearing in the user's dashboard temporarily.
+* **Chart Performance**: **TradingView's Lightweight Charts** provides superior performance for real-time React apps compared to standard SVG/Canvas libraries, especially when handling thousands of historical data points.
+* **Alpaca Portal "Internal" Errors**: Confirmed that errors like `Cannot read properties of undefined (reading 't')` appearing on the official Alpaca markets web portal are external frontend bugs (i18n related) and unrelated to our custom API integrations. 
 
 ## Next Steps
-* Connect real options chains execution or advanced Greeks calculation via the Alpaca Options Beta, sending real OCC OSI strings rather than equity proxies.
+* Connect real options chains execution or advanced Greeks calculation via the Alpaca Options Beta.
 * Enhance AI suggestions with an LLM (currently hardcoded conditional logic based on VIX).
+* Add technical analysis indicators (RSI, MACD, Volume) as overlays to the Symbol Charts.

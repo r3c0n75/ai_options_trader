@@ -3,6 +3,7 @@ import { MarketHealth } from './components/MarketHealth';
 import { Recommendations } from './components/Recommendations';
 import { ETFScanner } from './components/ETFScanner';
 import { NewsFeed } from './components/NewsFeed';
+import { SymbolChart } from './components/SymbolChart';
 import { 
   Briefcase, 
   Activity, 
@@ -54,6 +55,7 @@ interface PortfolioHistory {
 
 function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'news' | 'portfolio'>('dashboard');
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [trades, setTrades] = useState<TradeResponse[]>([]);
   const [recentOrders, setRecentOrders] = useState<TradeResponse[]>([]);
   const [account, setAccount] = useState<AccountStats | null>(null);
@@ -179,8 +181,17 @@ function App() {
             </div>
             
             <div className="lg:col-span-2">
-              <ETFScanner />
+              <ETFScanner onSelect={(s) => setSelectedSymbol(s)} />
             </div>
+
+            {selectedSymbol && (
+              <div className="lg:col-span-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                <SymbolChart 
+                  symbol={selectedSymbol} 
+                  onClose={() => setSelectedSymbol(null)} 
+                />
+              </div>
+            )}
 
             <div className="lg:col-span-3">
               <Recommendations />
