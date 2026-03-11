@@ -108,8 +108,8 @@ def get_symbol_analysis(symbol: str):
         from data_fetcher import get_stock_bars, get_financial_news
         # Get latest price info
         bars = get_stock_bars(symbol, period="1D")
-        latest_price = bars["prices"][-1] if bars.get("prices") else 0
-        prev_price = bars["prices"][-2] if bars.get("prices") and len(bars["prices"]) > 1 else latest_price
+        latest_price = bars[-1]["close"] if bars else 0
+        prev_price = bars[-2]["close"] if len(bars) > 1 else latest_price
         change_pct = ((latest_price - prev_price) / prev_price * 100) if prev_price != 0 else 0
         
         # Get news
