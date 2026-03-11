@@ -89,9 +89,29 @@ export const SymbolChart: React.FC<SymbolChartProps> = ({ symbol, onClose }) => 
     fetchData();
   }, [symbol, period]);
 
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ 
+          width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight
+        });
+      }
+    };
+
+    // Trigger resize when isFullscreen changes
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isFullscreen]);
+
   return (
-    <div className={`bg-gray-900/60 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 ${isFullscreen ? 'fixed inset-4 z-50' : 'relative'}`}>
-      <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/40">
+    <div className={`bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-300 flex flex-col ${
+      isFullscreen ? 'fixed inset-0 z-[100] !rounded-none' : 'relative h-[500px]'
+    }`}>
+      <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/40 shrink-0">
         <div className="flex items-center gap-4">
           <div>
             <h2 className="text-xl font-black text-white flex items-center gap-2">
@@ -117,33 +137,33 @@ export const SymbolChart: React.FC<SymbolChartProps> = ({ symbol, onClose }) => 
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 text-gray-500 hover:text-white transition-colors"
+            className="p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-lg"
           >
             {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
           {onClose && (
             <button 
               onClick={onClose}
-              className="p-2 text-gray-500 hover:text-rose-400 transition-colors"
+              className="p-2 text-gray-400 hover:text-rose-400 transition-colors bg-white/5 rounded-lg"
             >
-              <Maximize2 className="w-5 h-5 rotate-45" /> {/* Close icon via rotate */}
+              <Minimize2 className="w-5 h-5 rotate-45" />
             </button>
           )}
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative flex-1 bg-gray-950/20">
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-900/20 backdrop-blur-[2px]">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-900/40 backdrop-blur-[2px]">
             <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
           </div>
         )}
-        <div ref={chartContainerRef} className="w-full" style={{ height: isFullscreen ? 'calc(100vh - 120px)' : '400px' }} />
+        <div ref={chartContainerRef} className="w-full h-full" />
       </div>
       
-      <div className="p-3 bg-gray-950/20 text-[10px] text-gray-600 font-mono flex justify-between">
+      <div className="p-3 bg-gray-950 border-t border-gray-800 text-[10px] text-gray-600 font-mono flex justify-between shrink-0">
         <span>TradingView™ Lightweight Charts</span>
-        <span>Interactive View • {period} Interval</span>
+        <span>Interactive View • {period} Interval • {isFullscreen ? 'Fullscreen' : 'Desktop'} Mode</span>
       </div>
     </div>
   );

@@ -55,45 +55,73 @@ def generate_recommendations():
         # High Volatility (Seller's Market)
         if health["vix_level"] > 25:
             # Idea 1: Premium collection (Sell)
+            s_put = round(current_price * 0.95, 2)
+            l_put = round(current_price * 0.94, 2)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Put Credit Spread",
                 "side": "SELL",
                 "thesis": f"High Implied Volatility crush expected. Selling downside insurance on {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"Sell Put ~${round(current_price * 0.95, 2)} / Buy Put ~${round(current_price * 0.94, 2)}",
+                "target_entry": f"Sell Put ~${s_put} / Buy Put ~${l_put}",
                 "pop": "78%", 
                 "risk_reward": "1:3.5",
-                "confidence": "High"
+                "confidence": "High",
+                "diagram_data": {
+                    "underlying_price": current_price,
+                    "strategy_type": "credit_spread",
+                    "legs": [
+                        {"strike": s_put, "side": "SELL", "type": "PUT", "premium": 2.50},
+                        {"strike": l_put, "side": "BUY", "type": "PUT", "premium": 0.50}
+                    ]
+                }
             })
             # Idea 2: Strategic Covered Call (Sell)
+            s_call = round(current_price * 1.05, 2)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Covered Call",
                 "side": "SELL",
                 "thesis": f"Capitalizing on expensive call premiums while holding {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"Sell Call ~${round(current_price * 1.05, 2)} strike",
+                "target_entry": f"Sell Call ~${s_call} strike",
                 "pop": "82%",
                 "risk_reward": "1:1",
-                "confidence": "High"
+                "confidence": "High",
+                "diagram_data": {
+                    "underlying_price": current_price,
+                    "strategy_type": "covered_call",
+                    "legs": [
+                        {"strike": s_call, "side": "SELL", "type": "CALL", "premium": 3.20}
+                    ]
+                }
             })
             
         # Low Volatility (Buyer's Market)
         elif health["vix_level"] < 17:
             # Idea 1: Directional Leverage (Buy)
+            l_call = round(current_price, 2)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Long Call / ATM Leap",
                 "side": "BUY",
                 "thesis": f"Low cost of leverage. Technical breakout potential for {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"Buy Call at ~${round(current_price, 2)} strike",
+                "target_entry": f"Buy Call at ~${l_call} strike",
                 "pop": "45%", 
                 "risk_reward": "5:1",
-                "confidence": "Moderate"
+                "confidence": "Moderate",
+                "diagram_data": {
+                    "underlying_price": current_price,
+                    "strategy_type": "long_call",
+                    "legs": [
+                        {"strike": l_call, "side": "BUY", "type": "CALL", "premium": 5.00}
+                    ]
+                }
             })
             # Idea 2: Bullish Trend (Buy)
+            l_call_atm = round(current_price, 2)
+            s_call_otm = round(current_price * 1.05, 2)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Bull Call Debit Spread",
@@ -103,12 +131,24 @@ def generate_recommendations():
                 "target_entry": f"Buy Call At-the-money / Sell Call OTM",
                 "pop": "55%",
                 "risk_reward": "2.5:1",
-                "confidence": "Moderate"
+                "confidence": "Moderate",
+                "diagram_data": {
+                    "underlying_price": current_price,
+                    "strategy_type": "debit_spread",
+                    "legs": [
+                        {"strike": l_call_atm, "side": "BUY", "type": "CALL", "premium": 4.00},
+                        {"strike": s_call_otm, "side": "SELL", "type": "CALL", "premium": 1.50}
+                    ]
+                }
             })
             
         # Neutral / Sideways (Cash/Moderate Market)
         else:
             # Idea 1: Rangebound Capture (Sell)
+            s_p = round(current_price * 0.95, 2)
+            l_p = round(current_price * 0.93, 2)
+            s_c = round(current_price * 1.05, 2)
+            l_c = round(current_price * 1.07, 2)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Iron Condor",
@@ -118,9 +158,20 @@ def generate_recommendations():
                 "target_entry": "Market Neutral 10-delta Wings",
                 "pop": "65%",
                 "risk_reward": "1:2.2",
-                "confidence": "Moderate"
+                "confidence": "Moderate",
+                "diagram_data": {
+                    "underlying_price": current_price,
+                    "strategy_type": "iron_condor",
+                    "legs": [
+                        {"strike": s_p, "side": "SELL", "type": "PUT", "premium": 1.20},
+                        {"strike": l_p, "side": "BUY", "type": "PUT", "premium": 0.40},
+                        {"strike": s_c, "side": "SELL", "type": "CALL", "premium": 1.20},
+                        {"strike": l_c, "side": "BUY", "type": "CALL", "premium": 0.40}
+                    ]
+                }
             })
             # Idea 2: Earnings / Vol Play (Buy)
+            atm_strike = round(current_price, 2)
             recs.append({
                 "symbol": symbol,
                 "strategy": "Long Straddle/Strangle",
@@ -130,7 +181,15 @@ def generate_recommendations():
                 "target_entry": f"Buy Call + Buy Put near money",
                 "pop": "35%",
                 "risk_reward": "Uncapped",
-                "confidence": "Low"
+                "confidence": "Low",
+                "diagram_data": {
+                    "underlying_price": current_price,
+                    "strategy_type": "straddle",
+                    "legs": [
+                        {"strike": atm_strike, "side": "BUY", "type": "CALL", "premium": 3.00},
+                        {"strike": atm_strike, "side": "BUY", "type": "PUT", "premium": 3.00}
+                    ]
+                }
             })
             
     # Mix up the recommendations and pick the best 5

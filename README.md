@@ -8,8 +8,9 @@ An intelligent macroeconomic options trading dashboard. It provides a real-time 
 3. **Advanced Filtering & Ranking**: Sort and filter recommendations by Win Probability (POP), Risk/Reward Ratio, and AI Confidence to find the best setup for your risk profile.
 4. **News & Catalysts Feed**: A scrolling timeline of recent financial headlines connected back to the recommended trades.
 5. **High-Fidelity Portfolio Dashboard**: A comprehensive trading hub mirroring the Alpaca web portal. Includes an **Equity History Chart**, live **Account Balances** (Buying Power, Cash, Daily P/L), and an audit trail of **Recent Orders**.
-6. **Interactive Asset Charts**: Integrated **Lightweight Charts™** allow you to click any macro asset to visualize high-performance historical OHLC data with 1D, 1M, and 3M timeframes.
-7. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
+6. **Interactive Asset Charts**: Integrated **Lightweight Charts™** for high-performance historical data (1D, 1M, 3M) with an immersive **Fullscreen Analysis Mode**.
+7. **Trade Payoff Diagrams**: Interactive SVG-based P&L curves for all recommendations, providing TastyTrade-style risk analysis.
+8. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
 
 ## Getting Started
 

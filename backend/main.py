@@ -33,6 +33,17 @@ class MarketHealthResponse(BaseModel):
     vix_level: float
     description: str
 
+class StrategyLeg(BaseModel):
+    strike: float
+    side: str  # 'BUY' or 'SELL'
+    type: str  # 'CALL' or 'PUT'
+    premium: float
+
+class StrategyDiagramData(BaseModel):
+    underlying_price: float
+    strategy_type: str
+    legs: List[StrategyLeg]
+
 class TradeRecommendation(BaseModel):
     symbol: str
     strategy: str
@@ -43,6 +54,7 @@ class TradeRecommendation(BaseModel):
     pop: str
     risk_reward: str
     confidence: str
+    diagram_data: StrategyDiagramData
 
 class AccountResponse(BaseModel):
     buying_power: float

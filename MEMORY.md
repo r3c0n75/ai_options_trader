@@ -9,8 +9,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
-* **Interactive Symbol Charts**: Integrated **Lightweight Charts™** into the dashboard. Clicking an asset in the Macro Scanner triggers a high-performance candlestick chart update with support for 1D, 1M, and 3M intervals.
-* **Filtering/Sorting System**: Implemented custom string parsers in the frontend to handle numeric sorting of ratios ("5:1") and percentages ("75%") in trade suggestions.
+* **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for 1D, 1M, and 3M intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing.
+* **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions, providing immediate visual feedback on risk/reward profiles.
+* **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
 * **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**:
     * **Equity Performance Chart**: Visualizes historical valuation data via SVG.

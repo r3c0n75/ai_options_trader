@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Zap, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, ArrowRight, Filter, ChevronDown } from 'lucide-react';
+import { Target, Zap, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, ArrowRight, Filter, ChevronDown, BarChart3 } from 'lucide-react';
+import { StrategyPayoff } from './StrategyPayoff';
+
+interface StrategyLeg {
+  strike: number;
+  side: 'BUY' | 'SELL';
+  type: 'CALL' | 'PUT';
+  premium: number;
+}
 
 interface Recommendation {
   symbol: string;
   strategy: string;
-  side: string; // 'BUY' or 'SELL'
+  side: string;
   thesis: string;
   expiration: string;
   target_entry: string;
   pop: string;
   risk_reward: string;
   confidence: string;
+  diagram_data: {
+    underlying_price: number;
+    strategy_type: string;
+    legs: StrategyLeg[];
+  };
 }
 
 export const Recommendations: React.FC = () => {
@@ -19,6 +32,7 @@ export const Recommendations: React.FC = () => {
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
   const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
   const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence'>('none');
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   const parsePop = (pop: string) => parseInt(pop.replace('%', '')) || 0;
   
@@ -70,7 +84,7 @@ export const Recommendations: React.FC = () => {
         body: JSON.stringify({
           symbol: rec.symbol,
           strategy: rec.strategy,
-          entry_price: 0, // Mock entry price for now
+          entry_price: 0,
           quantity: 1
         })
       });
@@ -95,7 +109,6 @@ export const Recommendations: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* Side Filter */}
           <div className="flex bg-gray-900/80 border border-gray-800 rounded-xl p-1">
             {(['ALL', 'BUY', 'SELL'] as const).map(side => (
               <button
@@ -112,7 +125,6 @@ export const Recommendations: React.FC = () => {
             ))}
           </div>
 
-          {/* Sort Dropdown */}
           <div className="relative group">
             <div className="flex items-center gap-2 bg-gray-900/80 border border-gray-800 rounded-xl px-4 py-1.5 text-xs font-bold text-gray-400 group-hover:border-gray-700 transition-all cursor-pointer">
               <Filter className="w-3.5 h-3.5" />
@@ -148,8 +160,13 @@ export const Recommendations: React.FC = () => {
       ) : (
         <div className="grid gap-4">
           {processedRecs.map((rec, idx) => (
-            <div key={idx} className="group bg-gray-900/40 hover:bg-gray-800/60 border border-gray-800 hover:border-gray-700 transition-all duration-300 rounded-2xl p-6 relative overflow-hidden">
-               {/* Hover gradient effect */}
+            <div 
+              key={idx} 
+              onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+              className={`group bg-gray-900/40 hover:bg-gray-800/60 border transition-all duration-300 rounded-2xl p-6 relative overflow-hidden cursor-pointer
+                ${expandedIdx === idx ? 'border-blue-500/50 ring-1 ring-blue-500/20' : 'border-gray-800 hover:border-gray-700'}
+              `}
+            >
                <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                
                <div className="flex flex-col md:flex-row justify-between gap-6">
@@ -197,16 +214,25 @@ export const Recommendations: React.FC = () => {
                    </div>
                  </div>
 
-                 <div className="flex items-center justify-end md:justify-center md:pl-6 md:border-l border-gray-800">
+                 <div className="flex items-center justify-end md:justify-center md:pl-6 md:border-l border-gray-800 gap-4">
                    <button 
-                     onClick={() => executePaperTrade(rec)}
+                     onClick={(e) => { e.stopPropagation(); executePaperTrade(rec); }}
                      className="bg-white/5 hover:bg-blue-600 border border-white/10 hover:border-blue-500 text-white rounded-xl px-6 py-3 font-semibold transition-all duration-300 flex items-center gap-2 w-full md:w-auto justify-center group/btn"
                    >
-                     Paper Trade
+                     Order
                      <ArrowRight className="w-4 h-4 opacity-50 group-hover/btn:opacity-100 group-hover/btn:translate-x-1 transition-all" />
                    </button>
+                   <div className={`p-2 rounded-lg transition-colors ${expandedIdx === idx ? 'text-blue-400 bg-blue-400/10' : 'text-gray-500 group-hover:text-gray-300'}`}>
+                     <BarChart3 className="w-5 h-5" />
+                   </div>
                  </div>
                </div>
+
+               {expandedIdx === idx && (
+                 <div className="animate-in fade-in slide-in-from-top-4 duration-500 origin-top">
+                   <StrategyPayoff data={rec.diagram_data} />
+                 </div>
+               )}
             </div>
           ))}
         </div>

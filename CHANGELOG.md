@@ -8,7 +8,10 @@ All notable changes to this project will be documented in this file.
 - **Interactive Asset Charts:**
     - High-performance **TradingView Lightweight Charts™** integration for all core ETFs.
     - Dynamic timeframe switching: **1 Day (intraday)**, **1 Month**, and **3 Month** historical views.
-    - Cross-component synchronization: Clicking an asset in the Macro Scanner immediately updates the global chart.
+    - **Fullscreen Analysis Mode:** Enhanced immersive view with dynamic scaling and true edge-to-edge layout.
+- **Trade Payoff Diagrams (Analysis Curve © EXP):**
+    - Interactive P&L diagrams for all trade recommendations, mirroring **TastyTrade's** analysis platform.
+    - Visualizes profit/loss zones, breakeven points, and strike markers.
 - **Historical Bar Data API:** New backend endpoint `/stocks/{symbol}/bars` with robust **Alpaca v2** data fetching and **Yahoo Finance** fallback strategy.
 - **Investigative Deep-Dive:** Confirmed Alpaca Web Portal "reading 't'" error is a non-destructive external i18n frontend bug on Alpaca's side, unrelated to local API calls.
 
