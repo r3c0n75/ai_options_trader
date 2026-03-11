@@ -16,6 +16,20 @@ def get_headers():
         "Accept": "application/json"
     }
 
+def get_account():
+    url = f"{PAPER_API_URL}/account"
+    response = httpx.get(url, headers=get_headers())
+    if response.status_code == 200:
+        return response.json()
+    raise Exception(f"Failed to fetch account: {response.text}")
+
+def get_portfolio_history(period: str = "1D", timeframe: str = "1Min"):
+    url = f"{PAPER_API_URL}/account/portfolio/history?period={period}&timeframe={timeframe}"
+    response = httpx.get(url, headers=get_headers())
+    if response.status_code == 200:
+        return response.json()
+    return {}
+
 def submit_order(symbol: str, qty: int, side: str = "buy"):
     url = f"{PAPER_API_URL}/orders"
     payload = {
@@ -37,8 +51,8 @@ def get_positions():
         return response.json()
     return []
 
-def get_orders():
-    url = f"{PAPER_API_URL}/orders?status=open"
+def get_orders(status: str = "open", limit: int = 50):
+    url = f"{PAPER_API_URL}/orders?status={status}&limit={limit}"
     response = httpx.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()

@@ -7,7 +7,8 @@ An intelligent macroeconomic options trading dashboard. It provides a real-time 
 2. **AI Actionable Setups**: Diagnoses market regimes (Buyer's, Seller's, or Cash Market) using VIX and news to generate 6+ diverse options plays (Long Calls, Covered Calls, Straddles, Iron Condors). 
 3. **Advanced Filtering & Ranking**: Sort and filter recommendations by Win Probability (POP), Risk/Reward Ratio, and AI Confidence to find the best setup for your risk profile.
 4. **News & Catalysts Feed**: A scrolling timeline of recent financial headlines connected back to the recommended trades.
-5. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API. Natively tracks open positions and pending orders with real-time sync.
+5. **High-Fidelity Portfolio Dashboard**: A comprehensive trading hub mirroring the Alpaca web portal. Includes an **Equity History Chart**, live **Account Balances** (Buying Power, Cash, Daily P/L), and an audit trail of **Recent Orders**.
+6. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
 
 ## Getting Started
 

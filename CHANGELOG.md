@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Alpaca Live Paper Trading:** Switched from the local SQLite `options_trader.db` to syncing perfectly with Alpaca's Paper Trade API.
-  - Buying an equity via the app submits a real Market order.
-  - Open Positions table queries the real broker account directly making sync seamless across your dashboard and the Alpaca web portal.
-  - Closing or Deleting a trade immediately liquidates the position from the broker or cancels the order.
-  - Added a "Liquidate All" mechanism.
-  - Order state tracking: Distinguishes between `OPEN` positions and `PENDING` open orders (which blink orange and allow pre-market cancellations).
+- **High-Fidelity Portfolio Dashboard:**
+    - Real-time SVG-based **Equity Performance Chart**.
+    - Live **Balances Grid** showing Buying Power, Cash, and Daily P/L.
+    - Enhanced **Open Positions Table** with current price, market value, and unrealized P/L ($ and %).
+    - **Recent Orders History** section tracking fills, cancellations, and order state transitions.
+- **Alpaca API Backend Expansion:** Added endpoints for account analytics (`/account`) and historical performance (`/portfolio/history`).
 - **Comprehensive Recommendation Engine:** Expanded the AI strategy generator to include six diverse options plays, including Bull Call Spreads, Covered Calls, Long Straddles, and Iron Condors.
 - **Advanced Filtering & Sorting:** Integrated dynamic UI controls to filter trade ideas by side (BUY/SELL) and sort by Win Prob (POP), Risk/Reward Ratio, and AI Confidence.
 - **Memory Bank & Changelog Documentation:** Added standard documentation for project tracking.

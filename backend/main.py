@@ -8,7 +8,11 @@ from database import engine, get_db
 from engine import evaluate_market_health, generate_recommendations
 from pydantic import BaseModel
 import datetime
-from alpaca_trading import submit_order, get_positions, close_position, close_all_positions, get_orders, cancel_order
+from alpaca_trading import (
+    submit_order, get_positions, close_position, 
+    close_all_positions, get_orders, cancel_order,
+    get_account, get_portfolio_history
+)
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -40,6 +44,21 @@ class TradeRecommendation(BaseModel):
     risk_reward: str
     confidence: str
 
+class AccountResponse(BaseModel):
+    buying_power: float
+    cash: float
+    equity: float
+    long_market_value: float
+    day_change: float
+    day_change_percent: float
+
+class PortfolioHistoryResponse(BaseModel):
+    timestamp: List[int]
+    equity: List[float]
+    profit_loss: List[float]
+    profit_loss_pct: List[float]
+    base_value: float
+
 class TradeCreate(BaseModel):
     symbol: str
     strategy: str
@@ -51,8 +70,13 @@ class TradeResponse(BaseModel):
     symbol: str
     strategy: str
     entry_price: float
+    current_price: float = 0.0
     quantity: int
+    market_value: float = 0.0
+    unrealized_pl: float = 0.0
+    unrealized_plpc: float = 0.0
     status: str
+    side: str = "buy"
     opened_at: datetime.datetime
 
     class Config:
@@ -81,6 +105,41 @@ def get_top_recommendations():
     recs = generate_recommendations()
     return recs
 
+@app.get("/account", response_model=AccountResponse)
+def get_alpaca_account():
+    try:
+        acc = get_account()
+        # Calculate daily change
+        equity = float(acc["equity"])
+        last_equity = float(acc["last_equity"])
+        day_change = equity - last_equity
+        day_change_pct = (day_change / last_equity) * 100 if last_equity != 0 else 0
+        
+        return AccountResponse(
+            buying_power=float(acc["buying_power"]),
+            cash=float(acc["cash"]),
+            equity=equity,
+            long_market_value=float(acc["long_market_value"]),
+            day_change=day_change,
+            day_change_percent=day_change_pct
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/portfolio/history", response_model=PortfolioHistoryResponse)
+def get_alpaca_portfolio_history(period: str = "1D"):
+    try:
+        history = get_portfolio_history(period=period)
+        return PortfolioHistoryResponse(
+            timestamp=history.get("timestamp", []),
+            equity=history.get("equity", []),
+            profit_loss=history.get("profit_loss", []),
+            profit_loss_pct=history.get("profit_loss_pct", []),
+            base_value=float(history.get("base_value", 0))
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/trades", response_model=TradeResponse)
 def execute_paper_trade(trade: TradeCreate):
     try:
@@ -100,30 +159,88 @@ def execute_paper_trade(trade: TradeCreate):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/trades", response_model=List[TradeResponse])
-def get_open_trades():
+def get_open_trades(status: str = "open"):
     try:
+        if status == "all":
+            # Fetch both positions and recent closed orders
+            positions = get_positions()
+            closed_orders = get_orders(status="closed", limit=20)
+            open_orders = get_orders(status="open")
+            
+            trades = []
+            for p in positions:
+                trades.append(TradeResponse(
+                    id=p["symbol"],
+                    symbol=p["symbol"],
+                    strategy="Position",
+                    entry_price=float(p.get("avg_entry_price", 0.0)),
+                    current_price=float(p.get("current_price", 0.0)),
+                    quantity=abs(int(float(p.get("qty", 0)))),
+                    market_value=float(p.get("market_value", 0.0)),
+                    unrealized_pl=float(p.get("unrealized_pl", 0.0)),
+                    unrealized_plpc=float(p.get("unrealized_plpc", 0.0)) * 100,
+                    status="OPEN",
+                    side=p.get("side", "long"),
+                    opened_at=datetime.datetime.utcnow() # Alpaca doesn't give opened_at for positions easily
+                ))
+            
+            for o in open_orders:
+                trades.append(TradeResponse(
+                    id=o["id"],
+                    symbol=o["symbol"],
+                    strategy=f"{o['type'].capitalize()} {o['side'].capitalize()}",
+                    entry_price=0.0,
+                    current_price=0.0,
+                    quantity=abs(int(float(o.get("qty", 0)))),
+                    status="PENDING",
+                    side=o["side"],
+                    opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
+                ))
+
+            for o in closed_orders:
+                trades.append(TradeResponse(
+                    id=o["id"],
+                    symbol=o["symbol"],
+                    strategy=f"{o['type'].capitalize()} {o['side'].capitalize()}",
+                    entry_price=float(o.get("filled_avg_price") or 0.0),
+                    current_price=float(o.get("filled_avg_price") or 0.0),
+                    quantity=abs(int(float(o.get("filled_qty", 0)))),
+                    status=o["status"].upper(),
+                    side=o["side"],
+                    opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
+                ))
+            return trades
+        
+        # Default behavior: Just open positions and open orders
         positions = get_positions()
-        orders = get_orders()
+        orders = get_orders(status="open")
         trades = []
         for p in positions:
             trades.append(TradeResponse(
                 id=p["symbol"],
                 symbol=p["symbol"],
-                strategy="Equity Long",
+                strategy="Position",
                 entry_price=float(p.get("avg_entry_price", 0.0)),
+                current_price=float(p.get("current_price", 0.0)),
                 quantity=abs(int(float(p.get("qty", 0)))),
+                market_value=float(p.get("market_value", 0.0)),
+                unrealized_pl=float(p.get("unrealized_pl", 0.0)),
+                unrealized_plpc=float(p.get("unrealized_plpc", 0.0)) * 100,
                 status="OPEN",
+                side=p.get("side", "long"),
                 opened_at=datetime.datetime.utcnow()
             ))
         for o in orders:
             trades.append(TradeResponse(
                 id=o["id"],
                 symbol=o["symbol"],
-                strategy="Equity Order",
+                strategy=f"{o['type'].capitalize()} {o['side'].capitalize()}",
                 entry_price=0.0,
+                current_price=0.0,
                 quantity=abs(int(float(o.get("qty", 0)))),
                 status="PENDING",
-                opened_at=datetime.datetime.utcnow()
+                side=o["side"],
+                opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
             ))
         return trades
     except Exception as e:

@@ -13,7 +13,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **AI Recommendations**: Analyzes VIX to determine if it is a Buyer's, Seller's, or Cash Market. Generates six diverse setups (Buying calls, Selling puts, Iron Condors, Straddles) with directional labels and AI confidence levels.
 * **Filtering/Sorting System**: Implemented custom string parsers in the frontend to handle numeric sorting of ratios ("5:1") and percentages ("75%") in trade suggestions.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
-* **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**. SQLite `options_trader.db` was dropped. The dashboard submits real test-market orders (currently mocking Options chains by submitting 10x underlying Equities Market Orders) and reads real-time account balances, `OPEN` positions, and `PENDING` orders directly from Alpaca. This natively syncs action on the app with actions on Alpaca's website.
+* **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**. The dashboard features a high-fidelity **Portfolio View** that mirrors the Alpaca web portal:
+    * **Equity Performance Chart**: Visualizes historical valuation data via SVG.
+    * **Live Balances**: Real-time tracking of Buying Power, Cash, and Daily P/L.
+    * **Order Management**: Submits real market orders (equity proxies for options), polls `OPEN` and `PENDING` states, and maintains a **Recent Orders** history for audit trails.
+    * **Real-time Sync**: Natively syncs all actions (orders, liquidations) with the Alpaca web portal.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
