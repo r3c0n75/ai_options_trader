@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { Target, Zap, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, ArrowRight, Filter, ChevronDown, BarChart3 } from 'lucide-react';
 import { StrategyPayoff } from './StrategyPayoff';
+import { TradeConfirmationModal } from './TradeConfirmationModal';
 
 interface StrategyLeg {
   strike: number;
@@ -35,6 +36,8 @@ export const Recommendations: React.FC = () => {
   const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
   const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence'>('none');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [selectedTrade, setSelectedTrade] = useState<Recommendation | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const parsePop = (pop: string) => parseInt(pop.replace('%', '')) || 0;
   
@@ -76,7 +79,13 @@ export const Recommendations: React.FC = () => {
     fetchRecs();
   }, []);
 
-  const executePaperTrade = async (rec: Recommendation) => {
+  const openOrderModal = (rec: Recommendation) => {
+    setSelectedTrade(rec);
+    setIsModalOpen(true);
+  };
+
+  const executePaperTrade = async (rec: Recommendation, quantity: number) => {
+    setIsModalOpen(false);
     try {
       const res = await fetch('http://localhost:8000/trades', {
         method: 'POST',
@@ -88,7 +97,7 @@ export const Recommendations: React.FC = () => {
           strategy: rec.strategy,
           side: rec.side.toLowerCase(),
           entry_price: 0,
-          quantity: 1,
+          quantity: quantity,
           legs: rec.diagram_data.legs
         })
       });
@@ -97,7 +106,7 @@ export const Recommendations: React.FC = () => {
       
       if (res.ok) {
         setTradeStatus({
-          message: `Successfully executed paper trade for 1x ${rec.symbol} ${rec.strategy}`,
+          message: `Successfully executed paper trade for ${quantity}x ${rec.symbol} ${rec.strategy}`,
           isError: false
         });
         setTimeout(() => setTradeStatus(null), 5000);
@@ -117,7 +126,7 @@ export const Recommendations: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 relative">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
@@ -250,7 +259,7 @@ export const Recommendations: React.FC = () => {
 
                  <div className="flex items-center justify-end md:justify-center md:pl-6 md:border-l border-gray-800 gap-4">
                    <button 
-                     onClick={(e) => { e.stopPropagation(); executePaperTrade(rec); }}
+                     onClick={(e) => { e.stopPropagation(); openOrderModal(rec); }}
                      className="bg-white/5 hover:bg-blue-600 border border-white/10 hover:border-blue-500 text-white rounded-xl px-6 py-3 font-semibold transition-all duration-300 flex items-center gap-2 w-full md:w-auto justify-center group/btn"
                    >
                      Order
@@ -271,6 +280,13 @@ export const Recommendations: React.FC = () => {
           ))}
         </div>
       )}
+
+      <TradeConfirmationModal 
+        isOpen={isModalOpen}
+        trade={selectedTrade}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={executePaperTrade}
+      />
     </div>
   );
 };

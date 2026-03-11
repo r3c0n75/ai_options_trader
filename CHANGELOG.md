@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Trade Confirmation Modal:**
+    - High-fidelity **Lucide-React** modal UI intercepting all order submissions.
+    - Allows real-time **Quantity Modification** before executing a paper trade.
+    - Displays order "implications" (leg-by-leg summary) and strategy-specific warnings (e.g., Buy-Write notifications).
+- **Covered Call Buy-Write Logic:**
+    - New backend detector in `main.py` that checks for underlying equity holdings before selling a Covered Call.
+    - **Automatic Leg Injection:** If shares are missing, the backend automatically adds a stock "buy" leg with a 100x multiplier to the multi-leg Alpaca order.
+    - Updated `alpaca_trading.py` to support dynamic `ratio_qty` in option order payloads.
+
+### Fixed
+- **Frontend Typings:** Resolved several TypeScript compilation errors in the new modal component (TS1259 default-import mismatch and TS6133 unused imports).
+- **Implicit Any Errors:** Added explicit TypeScript interfaces to `map` functions within React components to satisfy strict `tsc` requirements.
+
+## [2026-03-11]
+
+### Added
 - **Interactive Asset Charts:**
     - High-performance **TradingView Lightweight Charts™** integration for all core ETFs.
     - Dynamic timeframe switching: **1 Day (intraday)**, **1 Month**, and **3 Month** historical views.

@@ -63,7 +63,7 @@ def submit_options_order(strategy: str, legs: list, quantity: int = 1):
         for leg in legs:
             order_legs.append({
                 "symbol": leg['symbol'],
-                "ratio_qty": 1,
+                "ratio_qty": leg.get('ratio_qty', 1),
                 "side": leg['side'].lower()
             })
             

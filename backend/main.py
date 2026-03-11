@@ -172,6 +172,25 @@ def execute_paper_trade(trade: TradeCreate):
         # Check if this is an options trade with legs
         if trade.legs and len(trade.legs) > 0:
             legs_data = [{"symbol": leg.symbol, "side": leg.side, "ratio_qty": 1} for leg in trade.legs]
+            
+            # Handle Covered Call buy-write scenario
+            if trade.strategy.lower() == "covered call":
+                positions = get_positions()
+                current_qty = 0
+                for p in positions:
+                    if p["symbol"] == trade.symbol:
+                        current_qty = int(float(p.get("qty", 0)))
+                        break
+                
+                required_qty = trade.quantity * 100
+                if current_qty < required_qty:
+                    # Inject an equity buy leg to make it a Buy-Write
+                    legs_data.append({
+                        "symbol": trade.symbol,
+                        "side": "buy",
+                        "ratio_qty": 100
+                    })
+            
             submit_options_order(trade.strategy, legs_data, trade.quantity)
             
             return TradeResponse(

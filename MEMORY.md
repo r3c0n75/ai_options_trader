@@ -4,9 +4,9 @@
 Provide an intelligent, top-down macroeconomic options trading dashboard. It scans a core ETF basket in real-time to generate trade ideas based on market volatility (VIX) and context from financial news.
 
 ## System Architecture
-* **Frontend:** React + Vite, TypeScript, TailwindCSS.
-* **Backend:** FastAPI, Python, `yfinance`, and Alpaca Markets API. (SQLAlchemy/SQLite removed in favor of live Alpaca sync).
-* **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
+*   **Frontend:** React + Vite, TypeScript, TailwindCSS.
+*   **Backend:** FastAPI, Python, `yfinance`, and Alpaca Markets API. (SQLAlchemy/SQLite removed in favor of live Alpaca sync).
+*   **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
 * **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for 1D, 1M, and 3M intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing.
@@ -19,6 +19,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
     * **Order Management**: Submits real market orders (equity proxies for options), polls `OPEN` and `PENDING` states, and maintains a **Recent Orders** history for audit trails.
     * **Real-time Sync**: Natively syncs all actions (orders, liquidations) with the Alpaca web portal.
     * **Real Options Integration**: Natively executes and groups multi-leg Option Orders (`mleg`) via Alpaca Options Beta, visualizing active trade Payoff charts directly in the portfolio.
+    * **Covered Call Buy-Write Fallback**: Automatically detects missing underlying equity for Covered Call strategies and injects a stock "buy" leg into the multi-leg order, effectively executing a Buy-Write to satisfy Alpaca tier requirements.
+* **Trade Confirmation & Execution Flow**: 
+    * **Review Modal**: All trade setups now trigger a high-fidelity confirmation modal before submission.
+    * **Dynamic Quantity**: Users can adjust the contract/share quantity directly within the modal, which dynamically recalculates the order implication across all legs.
+    * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
@@ -28,6 +33,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **Data Feed Resilience & Staleness**: Free Alpaca IEX feeds can lag significantly (weeks/days). We now implement a **3-day staleness check** on all bar requests; if Alpaca data is delayed, the system seamlessly swaps to `yfinance` to maintain chart accuracy.
 * **Alpaca Portal "Internal" Errors**: Confirmed that errors like `Cannot read properties of undefined (reading 't')` appearing on the official Alpaca markets web portal are external frontend bugs (i18n related) and unrelated to our custom API integrations. 
 * **Order Button & Trade Logic**: Mitigated silent failures by implementing explicit error propagation from backend to frontend. Introduced strategy-based mapping (v1) to correctly map option strategy directional intent to stock order side (e.g., Put Credit Spreads proxy as 'buy' orders).
+* **Alpaca Option Tiers (Covered Calls)**: Confirmed that Paper Accounts are restricted from selling naked calls (Tier 4). To sell a Covered Call without owning the stock, it must be submitted as a single multi-leg "Buy-Write" order (100 shares + 1 Short Call). Our implementation now handles this detection and injection automatically in the backend.
 
 ## Next Steps
 * Implement advanced Greeks calculation via the Alpaca Options Beta.
