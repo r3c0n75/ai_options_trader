@@ -21,6 +21,8 @@ import {
   RefreshCw,
   AlertCircle
 } from 'lucide-react';
+import { Omnisearch } from './components/Omnisearch';
+import { SymbolAnalysis } from './components/SymbolAnalysis';
 
 interface TradeResponse {
   id: string;
@@ -64,6 +66,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
+  const [searchedSymbol, setSearchedSymbol] = useState<string | null>(null);
 
   const parseOCC = (symbol: string) => {
     const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
@@ -245,6 +248,10 @@ function App() {
               </h1>
               <div className="text-xs font-semibold text-gray-500 tracking-widest uppercase">Intelligent Market Analysis</div>
             </div>
+          </div>
+          
+          <div className="flex-1 max-w-md mx-8 hidden lg:block">
+            <Omnisearch onSelect={(s) => setSearchedSymbol(s)} />
           </div>
           
           <nav className="flex items-center gap-2 bg-gray-900/50 p-1.5 rounded-2xl border border-gray-800 backdrop-blur-md w-full sm:w-auto">
@@ -537,6 +544,13 @@ function App() {
           </div>
         )}
       </div>
+
+      {searchedSymbol && (
+        <SymbolAnalysis 
+          symbol={searchedSymbol} 
+          onClose={() => setSearchedSymbol(null)} 
+        />
+      )}
     </div>
   );
 }

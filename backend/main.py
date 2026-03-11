@@ -13,6 +13,7 @@ from alpaca_trading import (
     close_all_positions, get_orders, cancel_order,
     get_account, get_portfolio_history
 )
+from ai_engine import get_symbol_vibe, get_research_response
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -96,6 +97,45 @@ class TradeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ChatRequest(BaseModel):
+    question: str
+    context: str = ""
+
+@app.get("/analysis/{symbol}")
+def get_symbol_analysis(symbol: str):
+    try:
+        from data_fetcher import get_stock_bars, get_financial_news
+        # Get latest price info
+        bars = get_stock_bars(symbol, period="1D")
+        latest_price = bars["prices"][-1] if bars.get("prices") else 0
+        prev_price = bars["prices"][-2] if bars.get("prices") and len(bars["prices"]) > 1 else latest_price
+        change_pct = ((latest_price - prev_price) / prev_price * 100) if prev_price != 0 else 0
+        
+        # Get news
+        news = get_financial_news(limit=5)
+        headlines = " | ".join([n['headline'] for n in news])
+        
+        # Get AI Vibe
+        vibe = get_symbol_vibe(symbol, {"price": latest_price, "change_percent": round(change_pct, 2)}, headlines)
+        
+        return {
+            "symbol": symbol,
+            "price": latest_price,
+            "change_pct": round(change_pct, 2),
+            "vibe": vibe,
+            "news": news
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/chat/{symbol}")
+def chat_symbol_research(symbol: str, request: ChatRequest):
+    try:
+        answer = get_research_response(symbol, request.question, request.context)
+        return {"answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/")
 def read_root():

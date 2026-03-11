@@ -1,7 +1,7 @@
 # AI Options Trader - Memory Bank
 
 ## Project Objective
-Provide an intelligent, top-down macroeconomic options trading dashboard. It scans a core ETF basket (SPY, QQQ, IWM, USO, GLD, TMF, BND) in real-time to generate trade ideas based on market volatility (VIX) and context from financial news.
+Provide an intelligent, top-down macroeconomic options trading dashboard. It features a **Gemini-powered AI Omnisearch** for deep-dive ticker analysis, a conversational **Research Sidecar**, and a core ETF macro basket scanner.
 
 ## System Architecture
 *   **Frontend:** React + Vite, TypeScript, TailwindCSS.

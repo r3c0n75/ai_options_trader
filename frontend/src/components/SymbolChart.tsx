@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
 import { Maximize2, Minimize2, Clock, Calendar } from 'lucide-react';
 
-export const SymbolChart = ({ symbol, onClose }: { symbol: string, onClose?: () => void }) => {
+export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, onClose?: () => void, hideHeader?: boolean }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -106,46 +106,48 @@ export const SymbolChart = ({ symbol, onClose }: { symbol: string, onClose?: () 
     <div className={`bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-300 flex flex-col ${
       isFullscreen ? 'fixed inset-0 z-[100] !rounded-none' : 'relative h-[500px]'
     }`}>
-      <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/40 shrink-0">
-        <div className="flex items-center gap-4">
-          <div>
-            <h2 className="text-xl font-black text-white flex items-center gap-2">
-              <span className="text-blue-400">{symbol}</span> Historical Data
-            </h2>
-            <div className="flex items-center gap-4 mt-1">
-              <div className="flex bg-black/40 p-1 rounded-lg border border-gray-800">
-                {(['1D', '1M', '3M'] as const).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase transition-all ${period === p ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white'}`}
-                  >
-                    {p === '1D' ? <Clock className="w-3 h-3 inline mr-1" /> : <Calendar className="w-3 h-3 inline mr-1" />}
-                    {p}
-                  </button>
-                ))}
+      {!hideHeader && (
+        <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/40 shrink-0">
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-xl font-black text-white flex items-center gap-2">
+                <span className="text-blue-400">{symbol}</span> Historical Data
+              </h2>
+              <div className="flex items-center gap-4 mt-1">
+                <div className="flex bg-black/40 p-1 rounded-lg border border-gray-800">
+                  {(['1D', '1M', '3M'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPeriod(p)}
+                      className={`px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase transition-all ${period === p ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      {p === '1D' ? <Clock className="w-3 h-3 inline mr-1" /> : <Calendar className="w-3 h-3 inline mr-1" />}
+                      {p}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-lg"
-          >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-          </button>
-          {onClose && (
+          
+          <div className="flex items-center gap-2">
             <button 
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-rose-400 transition-colors bg-white/5 rounded-lg"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-lg"
             >
-              <Minimize2 className="w-5 h-5 rotate-45" />
+              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
             </button>
-          )}
+            {onClose && (
+              <button 
+                onClick={onClose}
+                className="p-2 text-gray-400 hover:text-rose-400 transition-colors bg-white/5 rounded-lg"
+              >
+                <Minimize2 className="w-5 h-5 rotate-45" />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="relative flex-1 bg-gray-950/20">
         {loading && (
