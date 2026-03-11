@@ -44,6 +44,43 @@ def submit_order(symbol: str, qty: int, side: str = "buy"):
         raise Exception(f"Failed to submit order: {response.text}")
     return response.json()
 
+def submit_options_order(strategy: str, legs: list, quantity: int = 1):
+    url = f"{PAPER_API_URL}/orders"
+    
+    if len(legs) == 1:
+        # Single leg option
+        leg = legs[0]
+        payload = {
+            "symbol": leg['symbol'],
+            "qty": str(quantity),
+            "side": leg['side'].lower(),
+            "type": "market",
+            "time_in_force": "day"
+        }
+    else:
+        # Multi-leg option
+        order_legs = []
+        for leg in legs:
+            order_legs.append({
+                "symbol": leg['symbol'],
+                "ratio_qty": 1,
+                "side": leg['side'].lower()
+            })
+            
+        payload = {
+            "order_class": "mleg",
+            "legs": order_legs,
+            "qty": str(quantity),
+            "type": "market",
+            "time_in_force": "day"
+        }
+        
+    response = httpx.post(url, headers=get_headers(), json=payload)
+    if response.status_code not in (200, 201):
+        raise Exception(f"Failed to submit options order: {response.text}")
+    return response.json()
+
+
 def get_positions():
     url = f"{PAPER_API_URL}/positions"
     response = httpx.get(url, headers=get_headers())

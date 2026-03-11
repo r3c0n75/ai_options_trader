@@ -1,13 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
 import { Maximize2, Minimize2, Clock, Calendar } from 'lucide-react';
 
-interface SymbolChartProps {
-  symbol: string;
-  onClose?: () => void;
-}
-
-export const SymbolChart: React.FC<SymbolChartProps> = ({ symbol, onClose }) => {
+export const SymbolChart = ({ symbol, onClose }: { symbol: string, onClose?: () => void }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);

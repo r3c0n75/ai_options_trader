@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { Target, Zap, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, ArrowRight, Filter, ChevronDown, BarChart3 } from 'lucide-react';
 import { StrategyPayoff } from './StrategyPayoff';
 
@@ -7,6 +8,7 @@ interface StrategyLeg {
   side: 'BUY' | 'SELL';
   type: 'CALL' | 'PUT';
   premium: number;
+  symbol: string;
 }
 
 interface Recommendation {
@@ -29,7 +31,7 @@ interface Recommendation {
 export const Recommendations: React.FC = () => {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tradeStatus, setTradeStatus] = useState<string | null>(null);
+  const [tradeStatus, setTradeStatus] = useState<{message: string, isError: boolean} | null>(null);
   const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
   const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence'>('none');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
@@ -84,16 +86,33 @@ export const Recommendations: React.FC = () => {
         body: JSON.stringify({
           symbol: rec.symbol,
           strategy: rec.strategy,
+          side: rec.side.toLowerCase(),
           entry_price: 0,
-          quantity: 1
+          quantity: 1,
+          legs: rec.diagram_data.legs
         })
       });
+      
+      const data = await res.json();
+      
       if (res.ok) {
-        setTradeStatus(`Successfully executed paper trade for 1x ${rec.symbol} ${rec.strategy}`);
+        setTradeStatus({
+          message: `Successfully executed paper trade for 1x ${rec.symbol} ${rec.strategy}`,
+          isError: false
+        });
         setTimeout(() => setTradeStatus(null), 5000);
+      } else {
+        setTradeStatus({
+          message: `Trade Failed: ${data.detail || 'Unknown error from server'}`,
+          isError: true
+        });
       }
     } catch (err) {
       console.error(err);
+      setTradeStatus({
+        message: "Network Error: Could not connect to the trading server.",
+        isError: true
+      });
     }
   };
 
@@ -143,9 +162,24 @@ export const Recommendations: React.FC = () => {
       </div>
 
       {tradeStatus && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="w-5 h-5" />
-          {tradeStatus}
+        <div className={`${
+          tradeStatus.isError 
+            ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' 
+            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+          } border px-4 py-3 rounded-xl flex justify-between items-center gap-3 animate-in fade-in slide-in-from-top-2`}
+        >
+          <div className="flex items-center gap-3">
+            {tradeStatus.isError ? <AlertTriangle className="w-5 h-5 text-rose-400" /> : <CheckCircle2 className="w-5 h-5" />}
+            {tradeStatus.message}
+          </div>
+          {tradeStatus.isError && (
+            <button 
+              onClick={() => setTradeStatus(null)}
+              className="text-xs font-bold uppercase tracking-wider hover:text-white transition-colors"
+            >
+              Dismiss
+            </button>
+          )}
         </div>
       )}
 

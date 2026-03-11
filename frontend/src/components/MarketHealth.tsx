@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, ShieldAlert, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface MarketHealthData {

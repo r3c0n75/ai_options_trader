@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { MarketHealth } from './components/MarketHealth';
 import { Recommendations } from './components/Recommendations';
 import { ETFScanner } from './components/ETFScanner';
 import { NewsFeed } from './components/NewsFeed';
 import { SymbolChart } from './components/SymbolChart';
+import { StrategyPayoff } from './components/StrategyPayoff';
 import { 
   Briefcase, 
   Activity, 
@@ -62,6 +63,100 @@ function App() {
   const [history, setHistory] = useState<PortfolioHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
+
+  const parseOCC = (symbol: string) => {
+    const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
+    if (!match) return null;
+    return {
+      underlying: match[1],
+      expiration: match[2],
+      type: match[3] === 'C' ? 'CALL' : 'PUT',
+      strike: parseInt(match[4], 10) / 1000
+    };
+  };
+
+  const groupOpenTrades = () => {
+    const openTrades = trades.filter(t => t.status === 'OPEN');
+    const groups: any[] = [];
+    const optionsByUnderlying = new Map<string, TradeResponse[]>();
+    
+    openTrades.forEach(t => {
+      const occ = parseOCC(t.symbol);
+      if (occ) {
+        if (!optionsByUnderlying.has(occ.underlying)) optionsByUnderlying.set(occ.underlying, []);
+        optionsByUnderlying.get(occ.underlying)!.push(t);
+      } else {
+        groups.push({...t, 
+          isSpread: false,
+          legDetails: [t],
+          diagram_data: {
+            underlying_price: t.current_price || t.entry_price,
+            strategy_type: "long_stock",
+            legs: [{
+              strike: t.entry_price || t.current_price,
+              side: (t.side?.toLowerCase() === 'short' || t.side?.toLowerCase() === 'sell') ? 'SELL' : 'BUY',
+              type: 'STOCK',
+              premium: t.entry_price || t.current_price
+            }]
+          }
+        });
+      }
+    });
+    
+    optionsByUnderlying.forEach((options, underlying) => {
+      const totalMarketValue = options.reduce((sum, opt) => sum + opt.market_value, 0);
+      const totalPl = options.reduce((sum, opt) => sum + opt.unrealized_pl, 0);
+      const avgPlpc = options.reduce((sum, opt) => sum + opt.unrealized_plpc, 0) / options.length;
+      
+      let strategyName = `${options.length}-Leg Strategy`;
+      let strategyType = "custom";
+      if (options.length === 1) strategyName = `Long ${parseOCC(options[0].symbol)?.type}`;
+      if (options.length === 2) {
+         strategyName = "Vertical Option Spread";
+         strategyType = "debit_spread";
+      }
+      if (options.length === 4) {
+          strategyName = "Iron Condor";
+          strategyType = "iron_condor";
+      }
+      
+      const strikes = options.map(o => parseOCC(o.symbol)?.strike || 0);
+      const approxUnderlying = strikes.reduce((a,b)=>a+b,0) / strikes.length;
+
+      const legs = options.map(opt => {
+         const occ = parseOCC(opt.symbol)!;
+         return {
+           strike: occ.strike,
+           side: opt.quantity > 0 ? ('BUY' as const) : ('SELL' as const),
+           type: occ.type as ('CALL' | 'PUT'),
+           premium: opt.entry_price || Math.abs(opt.current_price) 
+         };
+      });
+
+      groups.push({
+        id: `mleg-${underlying}`,
+        symbol: underlying,
+        strategy: strategyName,
+        isSpread: true,
+        current_price: 0,
+        market_value: totalMarketValue,
+        unrealized_pl: totalPl,
+        unrealized_plpc: avgPlpc,
+        status: "OPEN",
+        side: "MULTI",
+        quantity: "1 Spread",
+        diagram_data: {
+          underlying_price: approxUnderlying,
+          strategy_type: strategyType,
+          legs: legs
+        },
+        legDetails: options
+      });
+    });
+    
+    return groups.sort((a,b) => b.market_value - a.market_value);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -181,7 +276,7 @@ function App() {
             </div>
             
             <div className="lg:col-span-2">
-              <ETFScanner onSelect={(s) => setSelectedSymbol(s)} />
+              <ETFScanner onSelect={(s: string) => setSelectedSymbol(s)} />
             </div>
 
             {selectedSymbol && (
@@ -309,39 +404,77 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/50">
-                    {trades.filter(t => t.status === 'OPEN').length === 0 ? (
+                    {groupOpenTrades().length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-20 text-center text-gray-600 font-medium italic">
                            No open positions. Place some trades to see this table populate.
                         </td>
                       </tr>
                     ) : (
-                      trades.filter(t => t.status === 'OPEN').map((t) => (
-                        <tr key={t.id} className="hover:bg-gray-800/30 transition-colors group">
-                          <td className="py-5 px-6">
-                            <span className="font-bold text-gray-200 group-hover:text-blue-400 transition-colors">{t.symbol}</span>
-                            <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">{t.strategy} {t.side}</div>
-                          </td>
-                          <td className="py-5 px-6 font-mono text-gray-400">$ {(t.current_price || 0).toFixed(2)}</td>
-                          <td className="py-5 px-6 font-mono text-gray-400">{t.quantity}</td>
-                          <td className="py-5 px-6 font-mono text-gray-200 font-bold">$ {(t.market_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                          <td className={`py-5 px-6 font-mono font-bold ${t.unrealized_pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {t.unrealized_pl >= 0 ? '+' : ''}{t.unrealized_pl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            <div className="text-[10px] font-medium opacity-80">({t.unrealized_plpc.toFixed(2)}%)</div>
-                          </td>
-                          <td className="py-5 px-6">
-                            <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              {t.status}
-                            </span>
-                          </td>
-                          <td className="py-5 px-6 text-right">
-                            <div className="flex gap-2 justify-end">
-                              <button onClick={() => handleClosePosition(t.id)} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Close Portfolio Position"><X className="w-4 h-4" /></button>
-                              <button onClick={() => handleDeletePosition(t.id)} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Liquidate"><Trash2 className="w-4 h-4" /></button>
-                            </div>
-                          </td>
-                        </tr>
+                      groupOpenTrades().map((t: any) => (
+                        <Fragment key={t.id}>
+                          <tr 
+                            onClick={t.diagram_data ? () => setExpandedOptionId(expandedOptionId === t.id ? null : t.id) : undefined}
+                            className={`hover:bg-gray-800/30 transition-colors group ${t.diagram_data ? 'cursor-pointer' : ''}`}
+                          >
+                            <td className="py-5 px-6">
+                              <span className="font-bold text-gray-200 group-hover:text-blue-400 transition-colors">{t.symbol}</span>
+                              <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">{t.strategy} {t.side !== 'MULTI' ? t.side : ''}</div>
+                            </td>
+                            <td className="py-5 px-6 font-mono text-gray-400">
+                              {t.isSpread ? '—' : `$ ${(t.current_price || 0).toFixed(2)}`}
+                            </td>
+                            <td className="py-5 px-6 font-mono text-gray-400">{t.quantity}</td>
+                            <td className="py-5 px-6 font-mono text-gray-200 font-bold">$ {(t.market_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className={`py-5 px-6 font-mono font-bold ${t.unrealized_pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {t.unrealized_pl >= 0 ? '+' : ''}{t.unrealized_pl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <div className="text-[10px] font-medium opacity-80">({t.unrealized_plpc.toFixed(2)}%)</div>
+                            </td>
+                            <td className="py-5 px-6">
+                              <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="py-5 px-6 text-right">
+                              <div className="flex gap-2 justify-end">
+                                {t.isSpread ? (
+                                   <button onClick={(e) => { e.stopPropagation(); t.legDetails.forEach((l:any) => handleClosePosition(l.id)); }} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Close Spread"><X className="w-4 h-4" /></button>
+                                ) : (
+                                  <>
+                                    <button onClick={(e) => { e.stopPropagation(); handleClosePosition(t.id); }} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Close Position"><X className="w-4 h-4" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeletePosition(t.id); }} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Liquidate"><Trash2 className="w-4 h-4" /></button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {t.diagram_data && expandedOptionId === t.id && (
+                            <tr className="bg-gray-900/50 border-t border-b border-gray-800/50 shadow-inner">
+                              <td colSpan={7} className="p-6">
+                                <div className="animate-in fade-in slide-in-from-top-4 duration-500 origin-top">
+                                  <div className="mb-4 flex flex-col gap-2">
+                                    <h4 className="text-sm font-bold text-gray-300">Leg Details:</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                                      {t.legDetails.map((l:any) => (
+                                        <div key={l.id} className="bg-gray-800/50 p-3 rounded-xl border border-gray-700/50 text-xs font-mono">
+                                          <div className="text-gray-400 mb-1">{l.symbol}</div>
+                                          <div className="flex justify-between">
+                                            <span className={l.quantity > 0 ? "text-emerald-400" : "text-orange-400"}>
+                                              {l.quantity > 0 ? "LONG" : "SHORT"} {Math.abs(l.quantity)}
+                                            </span>
+                                            <span className="text-gray-300">${Math.abs(l.current_price).toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <StrategyPayoff data={t.diagram_data} />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       ))
                     )}
                   </tbody>

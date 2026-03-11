@@ -38,6 +38,7 @@ class StrategyLeg(BaseModel):
     side: str  # 'BUY' or 'SELL'
     type: str  # 'CALL' or 'PUT'
     premium: float
+    symbol: str = "" # OCC Option Symbol
 
 class StrategyDiagramData(BaseModel):
     underlying_price: float
@@ -74,8 +75,10 @@ class PortfolioHistoryResponse(BaseModel):
 class TradeCreate(BaseModel):
     symbol: str
     strategy: str
+    side: str = "buy"
     entry_price: float
     quantity: int
+    legs: List[StrategyLeg] = None
 
 class TradeResponse(BaseModel):
     id: str
@@ -164,19 +167,56 @@ def get_alpaca_portfolio_history(period: str = "1D"):
 @app.post("/trades", response_model=TradeResponse)
 def execute_paper_trade(trade: TradeCreate):
     try:
-        # For simplicity in v1, we simulate 1 options contract = buying 10 stock shares in paper account
+        from alpaca_trading import submit_options_order, submit_order
+        
+        # Check if this is an options trade with legs
+        if trade.legs and len(trade.legs) > 0:
+            legs_data = [{"symbol": leg.symbol, "side": leg.side, "ratio_qty": 1} for leg in trade.legs]
+            submit_options_order(trade.strategy, legs_data, trade.quantity)
+            
+            return TradeResponse(
+                id=trade.symbol,
+                symbol=trade.symbol,
+                strategy=trade.strategy,
+                entry_price=trade.entry_price,
+                quantity=trade.quantity,
+                status="OPEN",
+                opened_at=datetime.datetime.utcnow(),
+                side=trade.side.lower()
+            )
+            
+        # Fallback to stock proxy simulation (v1) if no legs are provided
+        strategy_lower = trade.strategy.lower()
+        bullish_strategies = [
+            "put credit spread", "covered call", "iron condor", 
+            "long call", "atm leap", "bull call debit spread",
+            "long straddle", "long strangle"
+        ]
+        
+        order_side = "buy"
+        if any(s in strategy_lower for s in bullish_strategies):
+            order_side = "buy"
+        elif "put" in strategy_lower and "long" in strategy_lower:
+            order_side = "sell"
+        else:
+            order_side = trade.side.lower()
+
         qty_to_buy = max(1, trade.quantity * 10)
-        submit_order(trade.symbol, qty_to_buy, "buy")
+        submit_order(trade.symbol, qty_to_buy, order_side)
+        
         return TradeResponse(
             id=trade.symbol,
             symbol=trade.symbol,
-            strategy="Equity Buy",
+            strategy=trade.strategy,
             entry_price=trade.entry_price,
             quantity=qty_to_buy,
             status="OPEN",
-            opened_at=datetime.datetime.utcnow()
+            opened_at=datetime.datetime.utcnow(),
+            side=order_side
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/trades", response_model=List[TradeResponse])

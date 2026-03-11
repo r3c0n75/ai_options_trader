@@ -68,7 +68,7 @@ def get_stock_price(symbol: str) -> float:
         return 0.0
 
 def get_options_chain(symbol: str = "SPY"):
-    """Fetches the near-the-money options chain using Alpaca."""
+    """Fetches the near-the-money options chain using Alpaca Contracts API."""
     current_price = get_stock_price(symbol)
     if current_price == 0.0:
         return None
@@ -78,53 +78,73 @@ def get_options_chain(symbol: str = "SPY"):
         return _yfinance_options_fallback(symbol, current_price)
 
     try:
-        # We need to find the option contracts for the symbol first
-        # For simplicity in this demo, we'll try to fetch snapshots for near money standard monthly strikes
-        # A robust implementation would use the /options/contracts endpoint to find the exact nearest expiration,
-        # but as a simplified simulation, we will use the yfinance fallback to find the expiration date, 
-        # because the Alpaca options contracts endpoint requires complex date filtering.
+        # Fetch active contracts from Alpaca
+        today = datetime.utcnow().strftime('%Y-%m-%d')
+        url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=1000"
+        response = httpx.get(url, headers=get_headers())
         
-        # In a full production Alpaca options app:
-        # 1. Fetch from /v1beta1/options/contracts?underlying_symbols={symbol}
-        # 2. Sort by expiration date and filter by strikes near `current_price`
-        # 3. Fetch snapshots for those exact contract symbols
-        
-        # Here we blend them: Find the active contracts for the nearest expiration via yfinance, 
-        # then if we have Alpaca keys, use them to get the real-time bid/ask snapshot for those contracts.
-        
-        ticker = yf.Ticker(symbol)
-        expirations = ticker.options
+        if response.status_code != 200:
+            print(f"Alpaca contracts API error: {response.status_code} {response.text}")
+            return _yfinance_options_fallback(symbol, current_price)
+            
+        contracts = response.json().get('option_contracts', [])
+        if not contracts:
+            return _yfinance_options_fallback(symbol, current_price)
+            
+        # Group by expiration date
+        expirations = sorted(list(set([c['expiration_date'] for c in contracts])))
         if not expirations:
-            return None
+            return _yfinance_options_fallback(symbol, current_price)
             
         nearest_expiry = expirations[0]
-        opt_chain = ticker.option_chain(nearest_expiry)
         
-        calls = opt_chain.calls
-        puts = opt_chain.puts
+        # Filter contracts for nearest expiry
+        target_contracts = [c for c in contracts if c['expiration_date'] == nearest_expiry]
         
-        calls = calls[(calls['strike'] >= current_price * 0.95)]
-        puts = puts[(puts['strike'] <= current_price * 1.05)]
+        calls = [c for c in target_contracts if c['type'] == 'call']
+        puts = [c for c in target_contracts if c['type'] == 'put']
         
-        top_calls = calls.to_dict('records')[:10]
-        top_puts = puts.to_dict('records')[-10:]
+        # Sort by strike
+        calls.sort(key=lambda x: float(x['strike_price']))
+        puts.sort(key=lambda x: float(x['strike_price']))
         
-        # Example of how we WOULD fetch real-time Alpaca snapshots if we had the precise OCC OSI symbols:
-        # occ_symbols = [contract['contractSymbol'] for contract in top_calls + top_puts]
-        # snapshot_url = f"{ALPACA_OPTIONS_URL}/snapshots?symbols={','.join(occ_symbols)}"
-        # However, OCC symbols differ slightly (yfinance uses short year, Alpaca might use full).
-        # We'll use the yfinance data structure but note the Alpaca real-time capability.
+        # Filter near-the-money (within +/- 5% or simply closest to price)
+        calls_ntm = [c for c in calls if float(c['strike_price']) >= current_price * 0.90]
+        puts_ntm = [c for c in puts if float(c['strike_price']) <= current_price * 1.10]
+        
+        # If the NTM filtering resulted in empty lists (e.g., highly volatile gaps), fallback to just grabbing some
+        if not calls_ntm: calls_ntm = calls
+        if not puts_ntm: puts_ntm = puts
+        
+        # Format similar to yfinance fallback for frontend / engine compatibility
+        formatted_calls = []
+        for c in calls_ntm[:15]:
+            formatted_calls.append({
+                'contractSymbol': c['symbol'],
+                'strike': float(c['strike_price']),
+                'expiration': c['expiration_date'],
+                'type': 'call'
+            })
+            
+        formatted_puts = []
+        for c in puts_ntm[-15:]:
+            formatted_puts.append({
+                'contractSymbol': c['symbol'],
+                'strike': float(c['strike_price']),
+                'expiration': c['expiration_date'],
+                'type': 'put'
+            })
 
         return {
             "expiration": nearest_expiry, 
             "current_price": current_price,
-            "calls": top_calls,
-            "puts": top_puts,
-            "data_source": "Alpaca API (Price) + Yahoo (Chain)"
+            "calls": formatted_calls,
+            "puts": formatted_puts,
+            "data_source": "Alpaca API (Contracts)"
         }
     except Exception as e:
-        print(f"Error fetching options chain: {traceback.format_exc()}")
-        return None
+        print(f"Error fetching Alpaca options contracts: {traceback.format_exc()}")
+        return _yfinance_options_fallback(symbol, current_price)
 
 def _yfinance_options_fallback(symbol: str, current_price: float):
     # Original yfinance logic

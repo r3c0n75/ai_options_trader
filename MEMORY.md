@@ -10,7 +10,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 
 ## Current State
 * **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for 1D, 1M, and 3M intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing.
-* **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions, providing immediate visual feedback on risk/reward profiles.
+* **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions and active portfolio positions (Long Stock, Options Spreads), complete with X and Y axes for price and profit mapping.
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
 * **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**:
@@ -18,6 +18,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
     * **Live Balances**: Real-time tracking of Buying Power, Cash, and Daily P/L.
     * **Order Management**: Submits real market orders (equity proxies for options), polls `OPEN` and `PENDING` states, and maintains a **Recent Orders** history for audit trails.
     * **Real-time Sync**: Natively syncs all actions (orders, liquidations) with the Alpaca web portal.
+    * **Real Options Integration**: Natively executes and groups multi-leg Option Orders (`mleg`) via Alpaca Options Beta, visualizing active trade Payoff charts directly in the portfolio.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
@@ -26,8 +27,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It sca
 * **Chart Performance**: **TradingView's Lightweight Charts** provides superior performance for real-time React apps compared to standard SVG/Canvas libraries.
 * **Data Feed Resilience & Staleness**: Free Alpaca IEX feeds can lag significantly (weeks/days). We now implement a **3-day staleness check** on all bar requests; if Alpaca data is delayed, the system seamlessly swaps to `yfinance` to maintain chart accuracy.
 * **Alpaca Portal "Internal" Errors**: Confirmed that errors like `Cannot read properties of undefined (reading 't')` appearing on the official Alpaca markets web portal are external frontend bugs (i18n related) and unrelated to our custom API integrations. 
+* **Order Button & Trade Logic**: Mitigated silent failures by implementing explicit error propagation from backend to frontend. Introduced strategy-based mapping (v1) to correctly map option strategy directional intent to stock order side (e.g., Put Credit Spreads proxy as 'buy' orders).
 
 ## Next Steps
-* Connect real options chains execution or advanced Greeks calculation via the Alpaca Options Beta.
+* Implement advanced Greeks calculation via the Alpaca Options Beta.
 * Enhance AI suggestions with an LLM (currently hardcoded conditional logic based on VIX).
 * Add technical analysis indicators (RSI, MACD, Volume) as overlays to the Symbol Charts.

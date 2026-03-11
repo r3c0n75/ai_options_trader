@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 interface StrategyLeg {
   strike: number;
   side: 'BUY' | 'SELL';
-  type: 'CALL' | 'PUT';
+  type: 'CALL' | 'PUT' | 'STOCK';
   premium: number;
 }
 
@@ -17,12 +17,20 @@ interface StrategyPayoffProps {
   data: StrategyDiagramData;
 }
 
-export const StrategyPayoff: React.FC<StrategyPayoffProps> = ({ data }) => {
+export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
   const { underlying_price, legs } = data;
 
   // Calculate P&L for a single price point
   const calculatePnL = (price: number) => {
-    return legs.reduce((total, leg) => {
+    return legs.reduce((total: number, leg: StrategyLeg) => {
+      if (leg.type === 'STOCK') {
+        if (leg.side === 'BUY') {
+          return total + (price - leg.premium);
+        } else {
+          return total + (leg.premium - price);
+        }
+      }
+
       let pnl = 0;
       if (leg.type === 'CALL') {
         pnl = Math.max(0, price - leg.strike);
@@ -54,8 +62,8 @@ export const StrategyPayoff: React.FC<StrategyPayoffProps> = ({ data }) => {
 
   const maxPnL = Math.max(...points.map(p => Math.abs(p.pnl)), 10);
   const margin = 40;
-  const width = 600;
-  const height = 240;
+  const width = 640;
+  const height = 270;
 
   const xScale = (price: number) => {
     const minPrice = points[0].price;
@@ -133,7 +141,7 @@ export const StrategyPayoff: React.FC<StrategyPayoffProps> = ({ data }) => {
         <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" />
 
         {/* Strike Markers */}
-        {legs.map((leg, i) => (
+        {legs.map((leg: StrategyLeg, i: number) => (
           <g key={i}>
             <line 
               x1={xScale(leg.strike)} 
@@ -183,6 +191,46 @@ export const StrategyPayoff: React.FC<StrategyPayoffProps> = ({ data }) => {
             Now: {underlying_price}
           </text>
         </g>
+
+        {/* X-Axis */}
+        <line x1={margin} y1={height - margin + 20} x2={width - margin} y2={height - margin + 20} stroke="#1e293b" strokeWidth="1" />
+        {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+          const p = points[0].price + pct * (points[points.length - 1].price - points[0].price);
+          const x = xScale(p);
+          return (
+            <g key={`axis-${i}`}>
+              <line x1={x} y1={height - margin + 20} x2={x} y2={height - margin + 25} stroke="#1e293b" strokeWidth="1" />
+              <text 
+                x={x} 
+                y={height - margin + 35} 
+                textAnchor="middle" 
+                className="text-[9px] font-mono fill-gray-500"
+              >
+                ${p.toFixed(2)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Y-Axis */}
+        <line x1={width - margin + 10} y1={margin} x2={width - margin + 10} y2={height - margin} stroke="#1e293b" strokeWidth="1" />
+        {[1, 0.5, 0, -0.5, -1].map((pct, i) => {
+          const pnl = maxPnL * pct;
+          const y = yScale(pnl);
+          return (
+            <g key={`y-axis-${i}`}>
+              <line x1={width - margin + 10} y1={y} x2={width - margin + 15} y2={y} stroke="#1e293b" strokeWidth="1" />
+              <text 
+                x={width - margin + 20} 
+                y={y + 3} 
+                textAnchor="start" 
+                className={`text-[9px] font-mono ${pnl > 0 ? 'fill-emerald-500/70' : pnl < 0 ? 'fill-rose-500/70' : 'fill-gray-500'}`}
+              >
+                {pnl > 0 ? '+' : pnl < 0 ? '-' : ''}${Math.abs(pnl).toFixed(0)}
+              </text>
+            </g>
+          );
+        })}
       </svg>
       
       <div className="mt-2 flex justify-between">
