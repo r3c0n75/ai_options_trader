@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Default model if none specified
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-flash-latest"
 
 def _get_model(model_name: str = None):
     """Helper to get a GenerativeModel instance."""
@@ -44,12 +44,12 @@ def _get_model(model_name: str = None):
             print(f"DEBUG: Model metadata retrieved: {m.name}")
             return genai.GenerativeModel(model_id)
         except Exception as e:
-            print(f"DEBUG: Error retrieving model {model_id}: {e}. Falling back to gemini-1.5-flash.")
+            print(f"DEBUG: Error retrieving model {model_id}: {e}. Falling back to gemini-flash-latest.")
             # Final attempts
             try:
-                return genai.GenerativeModel("models/gemini-1.5-flash")
+                return genai.GenerativeModel("models/gemini-flash-latest")
             except:
-                return genai.GenerativeModel("models/gemini-pro")
+                return genai.GenerativeModel("models/gemini-pro-latest")
     except Exception as e:
         print(f"Error in _get_model for {name}: {e}")
         return None
@@ -82,7 +82,16 @@ def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_na
     """
 
     try:
-        response = model.generate_content(prompt)
+        try:
+            response = model.generate_content(prompt)
+        except Exception as e:
+            if "ResourceExhausted" in str(e) or "429" in str(e) or "limit" in str(e):
+                print(f"DEBUG: Quota limit hit for {model.model_name}. Retrying with Pro fallback.")
+                fallback_model = genai.GenerativeModel("models/gemini-pro-latest")
+                response = fallback_model.generate_content(prompt)
+            else:
+                raise e
+
         # Basic JSON extraction (Gemini often wraps in ```json)
         text = response.text
         if "```json" in text:
@@ -93,10 +102,10 @@ def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_na
         import json
         return json.loads(text)
     except Exception as e:
-        print(f"Gemini Error: {e}")
+        print(f"Gemini Error in Pulse: {e}")
         return {
             "verdict": "Indeterminate",
-            "thesis": "Failed to generate AI pulse. Technical error in Gemini synthesis.",
+            "thesis": f"Failed to generate AI pulse. Technical error in Gemini synthesis: {str(e)[:100]}",
             "suggested_play": "Iron Condor"
         }
 
@@ -119,7 +128,15 @@ def get_research_response(symbol: str, question: str, context: str, model_name: 
     """
 
     try:
-        response = model.generate_content(prompt)
+        try:
+            response = model.generate_content(prompt)
+        except Exception as e:
+            if "ResourceExhausted" in str(e) or "429" in str(e) or "limit" in str(e):
+                print(f"DEBUG: Quota limit hit for {model.model_name}. Retrying with Pro fallback.")
+                fallback_model = genai.GenerativeModel("models/gemini-pro-latest")
+                response = fallback_model.generate_content(prompt)
+            else:
+                raise e
         return response.text
     except Exception as e:
         return f"Research Error: {e}"

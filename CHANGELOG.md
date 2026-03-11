@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Gemini Engine Robustness (v2.2)**:
+    - Implemented a **ResourceExhausted (429) Fallback Wrapper** in `ai_engine.py` that automatically retries failed requests with `gemini-pro-latest` if quota limits are hit.
+    - Switched default analysis model to `gemini-flash-latest` for improved stability and higher free-tier throughput.
+    - Improved error reporting in the Pulse UI with descriptive technical snippets if synthesis fails.
 - **AI Omnisearch (Cmd+K)**:
     - Global ticker search with fuzzy-matching and keyboard shortcut support.
     - Integrated **Gemini 1.5** to provide an "AI Pulse" (instant Bear/Bull verdict and thesis) for any searched asset.
@@ -33,6 +37,7 @@ All notable changes to this project will be documented in this file.
     - Distributed numerical simulation for Greeks metrics in the backend (`main.py`) using real-world VIX-weighted logic.
 
 ### Fixed
+- **"Indeterminate" Pulse Error**: Resolved a synthesis failure where the Gemini 2.0 Flash model hit an unexpected 0-limit quota. Implemented an automatic retry logic in the backend that falls back to Gemini Pro if a ResourceExhausted/429 error occurs during content generation.
 - **Gemini 404 Research Error**: Fixed a critical "Model Not Found" bug by standardising on confirmed stable aliases (`gemini-flash-latest`) and implementing a backend normalization layer that handles `models/` prefixing and version mapping (2.0/2.5).
 - **At-The-Money (ATM) Strike Selection**: Refactored the options contract filter in `data_fetcher.py` to prioritize strikes closest to the current market price. This fixes a bug where high-priced assets (QQQ, IWM) were displaying ITM-skewed payoff diagrams because the selection window didn't reach the strike.
 - **Dynamic Straddle Premiums**: Updated `engine.py` to calculate straddle premiums as a percentage of the underlying price (1.5%) instead of a hardcoded value, ensuring mathematical accuracy for payoff curves across all price ranges.

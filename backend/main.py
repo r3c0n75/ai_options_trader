@@ -104,7 +104,7 @@ class ChatRequest(BaseModel):
     model: str = "gemini-flash-latest"
 
 @app.get("/analysis/{symbol}")
-async def analyze_symbol(symbol: str, model: str = "gemini-2.0-flash"):
+async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
     try:
         from data_fetcher import get_stock_bars, get_financial_news
         # Get latest price info
