@@ -44,8 +44,12 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **ATM Strike Proximity**: High-priced assets with high liquidity (QQQ) require strike selection based on absolute price proximity rather than index-based slicing of a range. This prevents "ITM bias" in payoff diagrams where the selection window fails to reach the current price.
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
 * **Low-Impact Strategy Scaling**: Strategies on low-priced assets (TMF) collecting small premiums ($0.50) initially appeared as flat lines due to a fixed +/- $10 P/L axis. Switching to a percentage-based adaptive Y-axis (Peak * 1.25) ensures clear visual feedback regardless of absolute dollar amounts.
+* **Gemini Engine Robustness (v2.1)**:
+    - Updated default models to **Gemini 2.0 Flash** and **Gemini Flash (Universal)** based on verified API key availability.
+    - Improved **`google-generativeai`** dependency to `v0.8.3` for modern model compatibility.
+    - Enhanced normalization layer in `ai_engine.py` to handle `models/` prefix requirements and multiple version aliases (1.5, 2.0, 2.5).
+    - Integrated verbose `DEBUG` logging in backend containers for real-time model resolution tracking.
 
-## Next Steps
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.
 * Add technical analysis indicators (RSI, MACD, Volume) as overlays to the Symbol Charts.
