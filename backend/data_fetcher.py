@@ -231,6 +231,9 @@ def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> 
         elif period == "1M":
             start = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
             timeframe_adj = "1Hour"
+        elif period == "12M":
+            start = (now - timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            timeframe_adj = "1Day"
         else: # 3M default
             start = (now - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
             timeframe_adj = "1Day"
@@ -272,7 +275,7 @@ def _yfinance_bars_fallback(symbol: str, period: str) -> list:
     try:
         ticker = yf.Ticker(symbol)
         interval = "1m" if period == "1D" else "1h" if period == "1M" else "1d"
-        yf_period = "1d" if period == "1D" else "1mo" if period == "1M" else "3mo"
+        yf_period = "1d" if period == "1D" else "1mo" if period == "1M" else "1y" if period == "12M" else "3mo"
         
         data = ticker.history(period=yf_period, interval=interval)
         results = []

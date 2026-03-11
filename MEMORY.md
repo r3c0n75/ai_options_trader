@@ -11,7 +11,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 ## Current State
 * **Gemini-Powered Research Assistant**: Integrated a conversational sidecar in the analysis view. Supported by multi-model selection (Flash, Pro, Thinking) with automated fallback logic in the backend to handle quota limits.
 * **Dynamic Macro Scanner**: Added editability to the core ETF basket. Users can add/remove assets, with persistence in `localStorage` and a "Reset to Defaults" feature.
-* **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for 1D, 1M, and 3M intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing.
+* **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for **1D, 1M, 3M, and 12M** intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing and explicit date-axis rendering.
 * **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions and active portfolio positions (Long Stock, Options Spreads), complete with X and Y axes for price and profit mapping.
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
@@ -44,12 +44,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **ATM Strike Proximity**: High-priced assets with high liquidity (QQQ) require strike selection based on absolute price proximity rather than index-based slicing of a range. This prevents "ITM bias" in payoff diagrams where the selection window fails to reach the current price.
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
 * **Low-Impact Strategy Scaling**: Strategies on low-priced assets (TMF) collecting small premiums ($0.50) initially appeared as flat lines due to a fixed +/- $10 P/L axis. Switching to a percentage-based adaptive Y-axis (Peak * 1.25) ensures clear visual feedback regardless of absolute dollar amounts.
-* **Gemini Engine Robustness (v2.2)**:
-    - Updated default models to **Gemini Flash (Universal)** based on verified stability and high free-tier throughput.
-    - Improved **`google-generativeai`** dependency to `v0.8.3` for modern model compatibility.
-    - **Backend Chimney**: Implemented a "normalization chimney" in `ai_engine.py` that sanitizes version strings and ensures the mandatory `models/` prefix.
-    - **ResourceExhausted (429) Resiliency**: Added an active retry/fallback wrapper around `generate_content` calls. If a model returns a quota/limit error, the system now automatically switches to `gemini-pro-latest` in real-time to complete the request.
-    - Integrated verbose `DEBUG` logging in backend containers for real-time model resolution tracking.
+* **Gemini Engine Robustness (v2.3)**:
+    - Updated default models to **`gemini-3-flash-preview`** to leverage Tier 1 provisioned credits and throughput.
+    - Implemented a "normalization chimney" and resolution cache in `ai_engine.py` to prevent 404s and redundant model metadata calls.
+    - **Performance Injection**: The research sidecar now receives quantitative **3M and 12M trend data**, enabling contextual reasoning over price performance.
+    - **ResourceExhausted (429) Resiliency**: Enhanced the fallback chain to rotate through Tier 1 preview models (Flash 3.0 -> Pro 3.1) with exponential backoff.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

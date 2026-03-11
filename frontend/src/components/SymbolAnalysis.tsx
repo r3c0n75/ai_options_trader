@@ -18,6 +18,8 @@ interface AnalysisData {
     verdict: string;
     thesis: string;
     suggested_play: string;
+    trend_3m?: number;
+    trend_12m?: number;
   };
   news: any[];
   greeks?: {
@@ -120,7 +122,7 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
             </div>
 
             {/* Chart Area */}
-            <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden h-[400px]">
+            <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden min-h-[500px] relative">
               <SymbolChart symbol={symbol} hideHeader />
             </div>
 

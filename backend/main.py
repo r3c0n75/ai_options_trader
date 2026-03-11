@@ -101,10 +101,10 @@ class TradeResponse(BaseModel):
 class ChatRequest(BaseModel):
     question: str
     context: str = ""
-    model: str = "gemini-flash-latest"
+    model: str = "gemini-3-flash-preview"
 
 @app.get("/analysis/{symbol}")
-async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
+async def analyze_symbol(symbol: str, model: str = "gemini-3-flash-preview"):
     try:
         from data_fetcher import get_stock_bars, get_financial_news
         # Get latest price info
@@ -116,9 +116,29 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
         # Get news
         news = get_financial_news(limit=5)
         headlines = " | ".join([n['headline'] for n in news])
+
+        # Get performance trends for context
+        bars_3m = get_stock_bars(symbol, period="3M")
+        perf_3m = ((latest_price - bars_3m[0]["close"]) / bars_3m[0]["close"] * 100) if bars_3m else 0
+        
+        bars_12m = get_stock_bars(symbol, period="12M")
+        perf_12m = ((latest_price - bars_12m[0]["close"]) / bars_12m[0]["close"] * 100) if bars_12m else 0
+
         # Synthesize vibe
         from ai_engine import get_symbol_vibe
-        vibe = get_symbol_vibe(symbol, {"price": latest_price, "change_percent": round(change_pct, 2)}, headlines, model_name=model)
+        vibe_context = {
+            "price": latest_price, 
+            "change_percent": round(change_pct, 2),
+            "trend_3m": round(perf_3m, 2),
+            "trend_12m": round(perf_12m, 2)
+        }
+        vibe = get_symbol_vibe(symbol, vibe_context, headlines, model_name=model)
+        
+        # Ensure trends are included in the final vibe object for the frontend/sidecar context
+        vibe.update({
+            "trend_3m": vibe_context["trend_3m"],
+            "trend_12m": vibe_context["trend_12m"]
+        })
         
         # Calculate/Simulate Advanced Greeks
         from data_fetcher import get_vix_level

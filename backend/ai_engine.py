@@ -1,98 +1,96 @@
 import os
+import time
 import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Default model if none specified
-DEFAULT_MODEL = "gemini-flash-latest"
+# Global cache to avoid redundant discovery calls
+_MODEL_CACHE = {}
+DEFAULT_MODEL = "gemini-3-flash-preview"
 
 def _get_model(model_name: str = None):
-    """Helper to get a GenerativeModel instance."""
+    """Helper to get a GenerativeModel instance with caching."""
     name = model_name or DEFAULT_MODEL
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        print("DEBUG: GOOGLE_API_KEY missing.")
         return None
     
+    # Normalize to Tier 1 Previews available in this project
+    model_id = name
+    if "3.1-pro" in model_id: model_id = "gemini-3.1-pro-preview"
+    elif "3-pro" in model_id: model_id = "gemini-3-pro-preview"
+    elif "3-flash" in model_id or "flash-latest" in model_id: model_id = "gemini-3-flash-preview"
+    elif "2.5-flash" in model_id: model_id = "gemini-2.5-flash"
+    elif "2.5-pro" in model_id: model_id = "gemini-2.5-pro"
+    elif "flash-8b" in model_id: model_id = "gemini-1.5-flash-8b" # Keep if exists
+    
+    if not model_id.startswith("models/"):
+        model_id = f"models/{model_id}"
+
+    if model_id in _MODEL_CACHE:
+        return _MODEL_CACHE[model_id]
+
     try:
         genai.configure(api_key=api_key)
-        
-        # Normalize common names to specific stable IDs
-        model_id = name
-        if "gemini-3" in model_id: pass # Use as is
-        elif "gemini-2.5" in model_id: pass # Use as is
-        elif "gemini-2.0-flash-thinking" in model_id: model_id = "gemini-2.0-flash-thinking-exp"
-        elif "gemini-2.0-flash" in model_id: model_id = "gemini-2.0-flash"
-        elif "gemini-2.0-pro" in model_id: model_id = "gemini-2.0-pro-exp"
-        elif "gemini-1.5-flash" in model_id: model_id = "gemini-1.5-flash"
-        elif "gemini-1.5-pro" in model_id: model_id = "gemini-1.5-pro"
-        elif "gemini-flash-latest" in model_id: model_id = "gemini-flash-latest"
-        elif "gemini-pro-latest" in model_id: model_id = "gemini-pro-latest"
-        elif "gemini-pro" in model_id: model_id = "gemini-pro-latest"
-        elif "gemini-flash" in model_id: model_id = "gemini-flash-latest"
-        
-        # Ensure prefix
-        if not model_id.startswith("models/"):
-            model_id = f"models/{model_id}"
-            
-        print(f"DEBUG: Attempting to use Gemini model: {model_id}")
-        
-        try:
-            # Test if model is available
-            m = genai.get_model(model_id)
-            print(f"DEBUG: Model metadata retrieved: {m.name}")
-            return genai.GenerativeModel(model_id)
-        except Exception as e:
-            print(f"DEBUG: Error retrieving model {model_id}: {e}. Falling back to gemini-flash-latest.")
-            # Final attempts
-            try:
-                return genai.GenerativeModel("models/gemini-flash-latest")
-            except:
-                return genai.GenerativeModel("models/gemini-pro-latest")
+        model = genai.GenerativeModel(model_id)
+        _MODEL_CACHE[model_id] = model
+        return model
     except Exception as e:
-        print(f"Error in _get_model for {name}: {e}")
+        print(f"Error initializing model {model_id}: {e}")
         return None
 
+def _generate_with_retry(model, prompt, max_retries=2):
+    """Generates content with backoff and model walking."""
+    # List of models to try in order of likely quota availability for this project
+    fallback_chain = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-3.1-pro-preview"]
+    
+    # Start with the requested model
+    current_model_name = model.model_name.replace("models/", "")
+    if current_model_name in fallback_chain:
+        fallback_chain.remove(current_model_name)
+    fallback_chain.insert(0, current_model_name)
+
+    last_error = ""
+    for m_name in fallback_chain:
+        try:
+            m = _get_model(m_name)
+            if not m: continue
+            
+            for attempt in range(max_retries):
+                try:
+                    return m.generate_content(prompt)
+                except Exception as e:
+                    last_error = str(e)
+                    if "429" in last_error or "Quota" in last_error:
+                        # Exponential backoff
+                        wait = (attempt + 1) * 2
+                        print(f"DEBUG: 429 for {m_name}. Retrying in {wait}s...")
+                        time.sleep(wait)
+                    else:
+                        raise e # If not a quota error, stop retrying this model
+        except Exception as e:
+            last_error = str(e)
+            print(f"DEBUG: Model {m_name} failed: {last_error[:50]}")
+            continue # Try next model in chain
+
+    raise Exception(f"Quota exceeded across all models. {last_error}")
+
 def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_name: str = None) -> dict:
-    """
-    Uses Gemini to synthesize market data and news into a concise 'Pulse'.
-    """
+    """Uses Gemini to synthesize market data into a concise 'Pulse'."""
     model = _get_model(model_name)
     if not model:
-        return {
-            "verdict": "Neutral",
-            "thesis": "Gemini API key not configured. Please add GOOGLE_API_KEY to .env.",
-            "suggested_play": "Hold"
-        }
+        return {"verdict": "Neutral", "thesis": "API key missing.", "suggested_play": "Hold"}
 
-    prompt = f"""
-    You are a world-class macroeconomic analyst and options strategist. 
-    Analyze the following data for {symbol}:
-    - Current Price: ${price_data.get('price', 'N/A')}
-    - Change: {price_data.get('change_percent', '0')}%
-    - Recent News: {news_headlines}
+    prompt = f"""Macro Analysis for {symbol}:
+Price Info: {price_data}
+Recent News: {news_headlines}
 
-    Provide a JSON response with:
-    1. "verdict": One or two words (e.g. "Bullish", "Bearish", "Cautious", "Volatile").
-    2. "thesis": A concise 2-sentence summary of why.
-    3. "suggested_play": One of the following: "Long Call", "Long Put", "Covered Call", "Put Credit Spread", "Iron Condor", "Straddle".
-
-    Format: JSON only.
-    """
+Task: Synthesize the current price trend (Short vs long term) and news into a professional trading 'vibe'.
+Return ONLY valid JSON with keys: verdict, thesis (2 sentences explaining the trend/news blend), suggested_play."""
 
     try:
-        try:
-            response = model.generate_content(prompt)
-        except Exception as e:
-            if "ResourceExhausted" in str(e) or "429" in str(e) or "limit" in str(e):
-                print(f"DEBUG: Quota limit hit for {model.model_name}. Retrying with Pro fallback.")
-                fallback_model = genai.GenerativeModel("models/gemini-pro-latest")
-                response = fallback_model.generate_content(prompt)
-            else:
-                raise e
-
-        # Basic JSON extraction (Gemini often wraps in ```json)
+        response = _generate_with_retry(model, prompt)
         text = response.text
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -102,41 +100,22 @@ def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_na
         import json
         return json.loads(text)
     except Exception as e:
-        print(f"Gemini Error in Pulse: {e}")
         return {
             "verdict": "Indeterminate",
-            "thesis": f"Failed to generate AI pulse. Technical error in Gemini synthesis: {str(e)[:100]}",
+            "thesis": "Quota exhausted. Switch to 'Gemini Flash 8B' or check AI Studio billing tier.",
             "suggested_play": "Iron Condor"
         }
 
 def get_research_response(symbol: str, question: str, context: str, model_name: str = None) -> str:
-    """
-    Streams or returns a research response for a specific question given symbol context.
-    """
+    """Returns a research response for a specific question."""
     model = _get_model(model_name)
     if not model:
         return "Gemini API key not configured."
 
-    prompt = f"""
-    You are an AI research assistant for an options trading platform. 
-    Topic: {symbol}
-    Current Context: {context}
-
-    Question: {question}
-
-    Provide a detailed but concise research answer based on the context. If the context doesn't have the answer, use your general financial knowledge but specify that it's general market context.
-    """
+    prompt = f"Topic: {symbol}\nContext: {context}\nQuestion: {question}"
 
     try:
-        try:
-            response = model.generate_content(prompt)
-        except Exception as e:
-            if "ResourceExhausted" in str(e) or "429" in str(e) or "limit" in str(e):
-                print(f"DEBUG: Quota limit hit for {model.model_name}. Retrying with Pro fallback.")
-                fallback_model = genai.GenerativeModel("models/gemini-pro-latest")
-                response = fallback_model.generate_content(prompt)
-            else:
-                raise e
+        response = _generate_with_retry(model, prompt)
         return response.text
     except Exception as e:
-        return f"Research Error: {e}"
+        return f"Research Error: Quota Limit Reached. (Current key tier is likely FREE). Error: {str(e)[:50]}"

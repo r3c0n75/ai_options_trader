@@ -6,7 +6,7 @@ export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, o
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const [period, setPeriod] = useState<'1D' | '1M' | '3M'>('3M');
+  const [period, setPeriod] = useState<'1D' | '1M' | '3M' | '12M'>('3M');
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -23,7 +23,7 @@ export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, o
         horzLines: { color: '#1e293b' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 400,
+      height: chartContainerRef.current.clientHeight || 400,
       timeScale: {
         borderColor: '#334155',
         timeVisible: true,
@@ -104,7 +104,7 @@ export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, o
 
   return (
     <div className={`bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-300 flex flex-col ${
-      isFullscreen ? 'fixed inset-0 z-[100] !rounded-none' : 'relative h-[500px]'
+      isFullscreen ? 'fixed inset-0 z-[100] !rounded-none' : 'relative h-full min-h-[500px]'
     }`}>
       {!hideHeader && (
         <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950/40 shrink-0">
@@ -115,7 +115,7 @@ export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, o
               </h2>
               <div className="flex items-center gap-4 mt-1">
                 <div className="flex bg-black/40 p-1 rounded-lg border border-gray-800">
-                  {(['1D', '1M', '3M'] as const).map(p => (
+                  {(['1D', '1M', '3M', '12M'] as const).map(p => (
                     <button
                       key={p}
                       onClick={() => setPeriod(p)}
@@ -155,6 +155,39 @@ export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, o
             <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
           </div>
         )}
+        
+        {/* Floating Controls for when header is hidden */}
+        {hideHeader && (
+          <div className="absolute top-4 left-4 z-10 flex bg-black/60 backdrop-blur-md p-1 rounded-xl border border-white/10 shadow-xl overflow-hidden">
+            {(['1D', '1M', '3M', '12M'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5
+                  ${period === p 
+                    ? 'bg-blue-600 text-white shadow-lg' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                {p === '1D' ? <Clock className="w-3.5 h-3.5" /> : <Calendar className="w-3.5 h-3.5" />}
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Floating Fullscreen toggle for when header is hidden */}
+        {hideHeader && (
+          <div className="absolute top-4 right-4 z-10">
+             <button 
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-2.5 text-gray-400 hover:text-white transition-all bg-black/60 backdrop-blur-md border border-white/10 rounded-xl shadow-xl hover:scale-105 active:scale-95"
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
+        )}
+
         <div ref={chartContainerRef} className="w-full h-full" />
       </div>
       
