@@ -81,7 +81,7 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-950 border border-gray-800/50 rounded-2xl overflow-hidden shadow-2xl relative">
+    <div className="flex flex-col h-full bg-gray-950 border border-gray-800/50 rounded-2xl overflow-hidden shadow-2xl relative min-h-0">
       {/* Header with Model Selector */}
       <div className="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between bg-gray-900/20 backdrop-blur-sm z-20">
         <div className="flex items-center gap-2">

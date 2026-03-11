@@ -139,7 +139,7 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
           </div>
 
           {/* Research Sidebar */}
-          <div className="lg:col-span-4 border-l border-gray-800 bg-gray-950 flex flex-col">
+          <div className="lg:col-span-4 border-l border-gray-800 bg-gray-950 flex flex-col min-h-0 h-full">
             <ResearchSidecar 
               symbol={symbol} 
               context={data ? JSON.stringify(data) : 'Loading context...'} 
