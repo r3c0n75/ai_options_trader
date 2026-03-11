@@ -1,9 +1,0 @@
-src/components/TradeConfirmationModal.tsx(1,8): error TS1259: Module '"/home/toml/projects/ai_options_trader/frontend/node_modules/@types/react/index"' can only be default-imported using the 'allowSyntheticDefaultImports' flag
-src/components/TradeConfirmationModal.tsx(2,25): error TS6133: 'Activity' is declared but its value is never read.
-src/components/TradeConfirmationModal.tsx(2,60): error TS6133: 'AlertTriangle' is declared but its value is never read.
-src/components/TradeConfirmationModal.tsx(36,81): error TS7031: Binding element 'isOpen' implicitly has an 'any' type.
-src/components/TradeConfirmationModal.tsx(36,89): error TS7031: Binding element 'trade' implicitly has an 'any' type.
-src/components/TradeConfirmationModal.tsx(36,96): error TS7031: Binding element 'onClose' implicitly has an 'any' type.
-src/components/TradeConfirmationModal.tsx(36,105): error TS7031: Binding element 'onConfirm' implicitly has an 'any' type.
-src/components/TradeConfirmationModal.tsx(114,52): error TS7006: Parameter 'leg' implicitly has an 'any' type.
-src/components/TradeConfirmationModal.tsx(114,57): error TS7006: Parameter 'i' implicitly has an 'any' type.
