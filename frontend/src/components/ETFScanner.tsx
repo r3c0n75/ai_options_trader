@@ -50,6 +50,27 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
     fetchData();
     // Save to localStorage whenever symbols change
     localStorage.setItem('macro_scanner_symbols', JSON.stringify(symbols));
+
+    const interval = setInterval(() => {
+      // Fetch without global loading state to prevent flickering
+      const silentFetch = async () => {
+        try {
+          const response = await fetch(`http://localhost:8000/scanner?symbols=${symbols.join(',')}`);
+          const json = await response.json();
+          if (json.data && Array.isArray(json.data)) {
+            setData(json.data);
+            setFeed(json.feed || 'Unknown');
+          } else {
+            setData(json);
+          }
+        } catch (err) {
+          console.error("Failed to auto-refresh scanner data:", err);
+        }
+      };
+      silentFetch();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [symbols]);
 
   const handleAddSymbol = (e: React.FormEvent) => {

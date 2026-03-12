@@ -12,16 +12,22 @@ export const MarketHealth: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:8000/market-health')
-      .then(res => res.json())
-      .then(json => {
-        setData(json);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Failed to fetch market health:", err);
-        setLoading(false);
-      });
+    const fetchMarketHealth = () => {
+      fetch('http://localhost:8000/market-health')
+        .then(res => res.json())
+        .then(json => {
+          setData(json);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Failed to fetch market health:", err);
+          setLoading(false);
+        });
+    };
+
+    fetchMarketHealth();
+    const interval = setInterval(fetchMarketHealth, 10000); // Refresh every 10s
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) return <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800 animate-pulse h-40"></div>;
