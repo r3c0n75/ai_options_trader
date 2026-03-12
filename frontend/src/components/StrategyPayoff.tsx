@@ -15,6 +15,8 @@ interface StrategyDiagramData {
   underlying_price: number;
   strategy_type: string;
   legs: StrategyLeg[];
+  total_quantity?: number;
+  actual_pl?: number;
 }
 
 interface StrategyPayoffProps {
@@ -22,7 +24,7 @@ interface StrategyPayoffProps {
 }
 
 export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
-  const { underlying_price, legs = [] } = data;
+  const { underlying_price, legs = [], total_quantity = 1, actual_pl } = data;
   const [zoomLevel, setZoomLevel] = useState<number>(1.0); 
   const [hoverData, setHoverData] = useState<{ price: number; pnl: number; currentPnl: number; x: number } | null>(null);
 
@@ -60,7 +62,7 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
         // Short P&L = Premium Received - Intrinsic Value
         return total + (leg.premium - intrinsic);
       }
-    }, 0);
+    }, 0) * (legs.some(l => l.type !== 'STOCK') ? 100 : 1) * total_quantity;
   };
 
   // Generate data points for the SVG path
@@ -197,10 +199,11 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
     const price = minPrice + ((xInViewBox - margin) / (width - 2 * margin)) * (maxPrice - minPrice);
     
     if (price >= minPrice && price <= maxPrice) {
+      const isTheo = Math.abs(price - underlying_price) > 0.1;
       setHoverData({ 
         price, 
         pnl: calculatePnL(price), 
-        currentPnl: calculateTheoreticalPnL(price, legs as any),
+        currentPnl: (actual_pl !== undefined && !isTheo) ? actual_pl : calculateTheoreticalPnL(price, legs as any),
         x: xInViewBox 
       });
     }
@@ -322,7 +325,14 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
             stroke="#fbbf24" 
             strokeWidth="1.5" 
           />
-          <circle cx={xScale(underlying_price)} cy={yScale(calculatePnL(underlying_price))} r="4" fill="#fbbf24" stroke="#000" strokeWidth="1" />
+          <circle 
+            cx={xScale(underlying_price)} 
+            cy={yScale(actual_pl !== undefined ? actual_pl : calculatePnL(underlying_price))} 
+            r="4" 
+            fill="#fbbf24" 
+            stroke="#000" 
+            strokeWidth="1" 
+          />
           <text 
             x={xScale(underlying_price)} 
             y={margin - 10} 

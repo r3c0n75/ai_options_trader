@@ -88,5 +88,5 @@ export function calculateTheoreticalPnL(
     } else {
       return total + (leg.premium - currentOptionPrice);
     }
-  }, 0);
+  }, 0) * (legs.some(l => l.type !== 'STOCK') ? 100 : 1);
 }

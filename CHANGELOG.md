@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 - **Enhanced Chart Interaction**:
     - Refined the inspection tooltip to show dual-values: **EXP (Blue)** and **NOW (Orange)**, color-coded to match the respective lines.
     - Improved coordinate mapping in SVG charts to ensure frame-perfect hover accuracy at high zoom levels.
+    - **P/L Accuracy & Multiplier Sync**: Resolved 100x multiplier discrepancy between per-share charts and total-dollar portfolio tables.
+    - **Market Sync**: Tied the 'NOW' analysis point directly to actual unrealized P/L from Alpaca, ensuring perfect alignment between visual diagrams and the account table.
 
 ### Added
 - **Top Macro Opportunities Toggle**:

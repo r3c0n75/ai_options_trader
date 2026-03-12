@@ -159,6 +159,8 @@ function App() {
             diagram_data: {
               underlying_price: stock.underlying_price || stock.current_price || stock.entry_price,
               strategy_type: "covered_call",
+              actual_pl: stock.unrealized_pl + matchingShortCall.unrealized_pl,
+              total_quantity: contractCount,
               legs: [
                 {
                   strike: stock.entry_price,
@@ -193,6 +195,8 @@ function App() {
           diagram_data: {
             underlying_price: stock.underlying_price || stock.current_price || stock.entry_price,
             strategy_type: "long_stock",
+            actual_pl: stock.unrealized_pl,
+            total_quantity: stock.quantity,
             legs: [{
               strike: stock.entry_price || stock.current_price,
               side: (stock.side?.toLowerCase() === 'short' || stock.side?.toLowerCase() === 'sell') ? 'SELL' : 'BUY',
@@ -287,6 +291,8 @@ function App() {
         diagram_data: {
           underlying_price: opts[0].underlying_price || opts[0].current_price || opts[0].entry_price,
           strategy_type: strategyType,
+          actual_pl: totalPl,
+          total_quantity: Math.abs(opts[0].quantity),
           legs: legs
         },
         legDetails: opts
