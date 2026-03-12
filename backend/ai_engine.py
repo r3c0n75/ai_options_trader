@@ -17,13 +17,14 @@ def _get_model(model_name: str = None):
         return None
     
     # Normalize to Tier 1 Previews available in this project
+    # Normalize to Tier 1 Previews available in this project
     model_id = name
     if "3.1-pro" in model_id: model_id = "gemini-3.1-pro-preview"
     elif "3-pro" in model_id: model_id = "gemini-3-pro-preview"
     elif "3-flash" in model_id: model_id = "gemini-3-flash-preview"
+    elif "2.5-flash" in model_id: model_id = "gemini-2.5-flash"
     elif "2.0-flash" in model_id: model_id = "gemini-2.0-flash"
-    elif "1.5-pro" in model_id: model_id = "gemini-1.5-pro"
-    elif "1.5-flash" in model_id or "flash-latest" in model_id: model_id = "gemini-1.5-flash"
+    elif "flash-lite" in model_id: model_id = "gemini-2.0-flash-lite"
     elif "flash-8b" in model_id: model_id = "gemini-1.5-flash-8b"
     
     if not model_id.startswith("models/"):
@@ -44,7 +45,7 @@ def _get_model(model_name: str = None):
 def _generate_with_retry(model, prompt, max_retries=2):
     """Generates content with backoff and model walking."""
     # List of models to try in order of likely quota availability for this project
-    fallback_chain = ["gemini-3-flash-preview", "gemini-1.5-flash", "gemini-3.1-pro-preview", "gemini-1.5-pro", "gemini-2.0-flash"]
+    fallback_chain = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.1-pro-preview", "gemini-2.0-flash-lite"]
     
     # Start with the requested model
     current_model_name = model.model_name.replace("models/", "")
@@ -72,10 +73,10 @@ def _generate_with_retry(model, prompt, max_retries=2):
                         raise e # If not a quota error, stop retrying this model
         except Exception as e:
             last_error = str(e)
-            print(f"DEBUG: Model {m_name} failed: {last_error[:50]}")
+            print(f"DEBUG: Critical: Model {m_name} failed: {last_error}")
             continue # Try next model in chain
 
-    raise Exception(f"Quota exceeded across all models. {last_error}")
+    raise Exception(f"All models exhausted. Last error: {last_error}")
 
 def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_name: str = None) -> dict:
     """Uses Gemini to synthesize market data into a concise 'Pulse'."""
@@ -101,10 +102,12 @@ Return ONLY valid JSON with keys: verdict, thesis (2 sentences explaining the tr
         import json
         return json.loads(text)
     except Exception as e:
+        error_msg = str(e)
+        print(f"CRITICAL: get_symbol_vibe failed: {error_msg}")
         return {
-            "verdict": "Indeterminate",
-            "thesis": "Quota exhausted. Switch to 'Gemini Flash 8B' or check AI Studio billing tier.",
-            "suggested_play": "Iron Condor"
+            "verdict": "Error",
+            "thesis": f"AI Engine Exception: {error_msg[:100]}... Check logs for details.",
+            "suggested_play": "N/A"
         }
 
 def get_research_response(symbol: str, question: str, context: str, model_name: str = None) -> str:
