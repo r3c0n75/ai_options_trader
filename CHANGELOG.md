@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Visual Branding**:
+    - **Custom Browser Tab Icon**: Replaced the default Vite favicon with a custom "AI Pulse" icon featuring a vibrant blue-to-emerald gradient and a white heartbeat line, matching the application's premium aesthetic.
+    - **Frontend Asset Management**: Created a dedicated `frontend/public` directory for persistent static assets and configured `index.html` to reference the new `/favicon.svg`.
+
+
 ### Fixed
 - **Payoff Diagram Accuracy**:
     - **Covered Call Synchronization**: Fixed the "flipped" appearance in Macro Opportunities by correctly including the underlying stock leg in the diagram data.

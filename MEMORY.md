@@ -9,6 +9,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 *   **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
+* **Visual Branding & UX**:
+    - **Custom Favicon**: Implemented a bespoke "AI Pulse" browser tab icon with high-fidelity gradients (#3b82f6 to #34d399) and a semantic heartbeat motif, enhancing the premium feel.
+    - **Asset Architecture**: Created `frontend/public` for static assets and updated `index.html` for proper SVG favicon resolution.
 * **Gemini-Powered Research Assistant**:
     * **2026 Model Optimization**: Fully tuned for the latest Gemini model chain (`flash-latest`, `2.5-flash`).
     * **Comparative Context Engine**: Automatically detects multiple mentioned symbols in chat and fetches their real-time price/trend data for instant comparative reasoning.
