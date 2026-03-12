@@ -92,6 +92,7 @@ class TradeResponse(BaseModel):
     market_value: float = 0.0
     unrealized_pl: float = 0.0
     unrealized_plpc: float = 0.0
+    underlying_price: float = 0.0
     status: str
     side: str = "buy"
     opened_at: datetime.datetime
@@ -347,7 +348,25 @@ def get_open_trades(status: str = "open"):
             open_orders = get_orders(status="open")
             
             trades = []
+            # Build a lookup for underlying prices
+            symbol_price_map = {p["symbol"]: float(p.get("current_price") or 0.0) for p in positions}
+            
             for p in positions:
+                sym = p["symbol"]
+                u_price = float(p.get("last_underlying_price") or 0.0)
+                
+                # If it's an option and u_price is missing, try to derive it from the stock position
+                if not u_price and any(c.isdigit() for c in sym) and len(sym) > 10:
+                    # Extract underlying from OCC (e.g., SBUX260417P00095000 -> SBUX)
+                    match = re.search(r'^([A-Z]+)\d', sym)
+                    if match:
+                        u_sym = match.group(1)
+                        u_price = symbol_price_map.get(u_sym, 0.0)
+                
+                # Final fallback to current price if still 0 (for stocks)
+                if not u_price:
+                    u_price = float(p.get("current_price") or 0.0)
+
                 trades.append(TradeResponse(
                     id=p["symbol"],
                     symbol=p["symbol"],
@@ -358,9 +377,10 @@ def get_open_trades(status: str = "open"):
                     market_value=float(p.get("market_value", 0.0)),
                     unrealized_pl=float(p.get("unrealized_pl", 0.0)),
                     unrealized_plpc=float(p.get("unrealized_plpc", 0.0)) * 100,
+                    underlying_price=u_price,
                     status="OPEN",
                     side=p.get("side", "long"),
-                    opened_at=datetime.datetime.utcnow() # Alpaca doesn't give opened_at for positions easily
+                    opened_at=datetime.datetime.utcnow()
                 ))
             
             for o in open_orders:
@@ -393,8 +413,23 @@ def get_open_trades(status: str = "open"):
         # Default behavior: Just open positions and open orders
         positions = get_positions()
         orders = get_orders(status="open")
+        # Build a lookup for underlying prices
+        symbol_price_map = {p["symbol"]: float(p.get("current_price") or 0.0) for p in positions}
+        
         trades = []
         for p in positions:
+            sym = p["symbol"]
+            u_price = float(p.get("last_underlying_price") or 0.0)
+            
+            if not u_price and any(c.isdigit() for c in sym) and len(sym) > 10:
+                match = re.search(r'^([A-Z]+)\d', sym)
+                if match:
+                    u_sym = match.group(1)
+                    u_price = symbol_price_map.get(u_sym, 0.0)
+            
+            if not u_price:
+                u_price = float(p.get("current_price") or 0.0)
+
             trades.append(TradeResponse(
                 id=p["symbol"],
                 symbol=p["symbol"],
@@ -405,6 +440,7 @@ def get_open_trades(status: str = "open"):
                 market_value=float(p.get("market_value", 0.0)),
                 unrealized_pl=float(p.get("unrealized_pl", 0.0)),
                 unrealized_plpc=float(p.get("unrealized_plpc", 0.0)) * 100,
+                underlying_price=u_price,
                 status="OPEN",
                 side=p.get("side", "long"),
                 opened_at=datetime.datetime.utcnow()

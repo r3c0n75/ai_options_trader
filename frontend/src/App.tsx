@@ -35,6 +35,7 @@ interface TradeResponse {
   market_value: number;
   unrealized_pl: number;
   unrealized_plpc: number;
+  underlying_price: number;
   status: string;
   side: string;
   opened_at: string;
@@ -156,7 +157,7 @@ function App() {
             dte: matchingShortCall.dte,
             riskLevel: getRiskLevel(matchingShortCall.dte, matchingShortCall.unrealized_plpc),
             diagram_data: {
-              underlying_price: stock.current_price || stock.entry_price,
+              underlying_price: stock.underlying_price || stock.current_price || stock.entry_price,
               strategy_type: "covered_call",
               legs: [
                 {
@@ -188,7 +189,7 @@ function App() {
           riskLevel: 'none',
           legDetails: [stock],
           diagram_data: {
-            underlying_price: stock.current_price || stock.entry_price,
+            underlying_price: stock.underlying_price || stock.current_price || stock.entry_price,
             strategy_type: "long_stock",
             legs: [{
               strike: stock.entry_price || stock.current_price,
@@ -227,13 +228,41 @@ function App() {
           ? (isShort ? 'short_call' : 'long_call') 
           : (isShort ? 'short_put' : 'long_put');
       } else if (opts.length === 2) {
-         strategyName = "Vertical Option Spread";
-         strategyType = "debit_spread";
+        const leg1 = opts[0];
+        const leg2 = opts[1];
+        const isSameType = leg1.occ.type === leg2.occ.type;
+        const isOppositeSides = (leg1.side === 'short' || leg1.quantity < 0) !== (leg2.side === 'short' || leg2.quantity < 0);
+
+        if (isSameType && isOppositeSides) {
+          const longLeg = (leg1.side === 'long' || leg1.quantity > 0) ? leg1 : leg2;
+          const shortLeg = (leg1.side === 'short' || leg1.quantity < 0) ? leg1 : leg2;
+
+          if (longLeg.occ.type === 'PUT') {
+            if (shortLeg.occ.strike > longLeg.occ.strike) {
+              strategyName = "Put Credit Spread";
+              strategyType = "credit_spread";
+            } else {
+              strategyName = "Bear Put Debit Spread";
+              strategyType = "debit_spread";
+            }
+          } else { // CALL
+            if (shortLeg.occ.strike < longLeg.occ.strike) {
+              strategyName = "Call Credit Spread";
+              strategyType = "credit_spread";
+            } else {
+              strategyName = "Bull Call Debit Spread";
+              strategyType = "debit_spread";
+            }
+          }
+        } else {
+          strategyName = "Vertical Option Spread";
+          strategyType = "debit_spread";
+        }
       }
       
       const legs = opts.map(opt => ({
         strike: opt.occ.strike,
-        side: opt.quantity > 0 ? ('BUY' as const) : ('SELL' as const),
+        side: (opt.side?.toLowerCase() === 'short' || opt.quantity < 0) ? ('SELL' as const) : ('BUY' as const),
         type: opt.occ.type as ('CALL' | 'PUT'),
         premium: opt.entry_price || Math.abs(opt.current_price) 
       }));
@@ -252,7 +281,7 @@ function App() {
         dte: minDte === 999 ? null : minDte,
         riskLevel: riskLevel,
         diagram_data: {
-          underlying_price: opts[0].current_price || opts[0].entry_price,
+          underlying_price: opts[0].underlying_price || opts[0].current_price || opts[0].entry_price,
           strategy_type: strategyType,
           legs: legs
         },
@@ -762,8 +791,8 @@ function App() {
                                         <div key={l.id} className="bg-gray-800/50 p-3 rounded-xl border border-gray-700/50 text-xs font-mono">
                                           <div className="text-gray-400 mb-1">{l.symbol}</div>
                                           <div className="flex justify-between items-center">
-                                            <span className={l.quantity > 0 ? "text-emerald-400" : "text-orange-400"}>
-                                              {l.quantity > 0 ? "LONG" : "SHORT"} {Math.abs(l.quantity)}
+                                            <span className={(l.side?.toLowerCase() === 'long' || l.side?.toLowerCase() === 'buy') ? "text-emerald-400" : "text-orange-400"}>
+                                              {(l.side?.toLowerCase() === 'long' || l.side?.toLowerCase() === 'buy') ? "LONG" : "SHORT"} {Math.abs(l.quantity)}
                                             </span>
                                             <div className="flex flex-col items-end">
                                               <span className="text-gray-300">${Math.abs(l.current_price).toFixed(2)}</span>

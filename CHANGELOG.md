@@ -4,46 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-- **Portfolio Risk Management**:
-    - **Expiry & DTE Tracking**: Automated extraction of expiration dates from OCC symbols with real-time "Days to Expiration" (DTE) calculation for all positions and spreads.
-    - **Intelligent Risk Alerts**: Dynamic color-coded urgency alerts (⚠️ Warning, 🚨 Critical) based on time-to-expiry and profitability.
-    - **"Trade Guardian" Advisor Popover**: Interactive advisor providing tailored advice (Roll Out, Roll Up/Down, Hedge) directly within the portfolio table.
-    - **Consolidated "Close" Button**: Replaced redundant icons with a single, high-fidelity elliptical red button for streamlined position liquidation.
-    - **Portfolio Chart Inspection**: Implemented synchronized hover hair-lines and "Blue Dot" data tracking on the Equity chart, with detailed Tooltips showing timestamp-precise Profit/Loss data.
-- **Backend Liquidation Reliability**:
-    - **ID Detection Engine**: Implemented robust UUID regex matching to correctly distinguish between Alpaca Order IDs (for cancellation) and Option Symbols (for closure), resolving failures with 21-character OCC symbols.
-    - **Sequential Spread Closure**: Frontend now processes multi-leg liquidation requests sequentially to ensure reliability and prevent race conditions during spread exits.
-    - **Market-Close Awareness**: The system now detects and explains Alpaca rejections when the market is closed, gracefully resetting the UI state with descriptive notifications.
-
-### Changed
-- Refactored `App.tsx` state management for position closure to include "Closing..." loading states and automatic state restoration on failure.
-- Harmonized the Portfolio table layout by inserting an "Exp / DTE" column and removing redundant "Actions" icons.
-
-### Added
-- **AI Engine 2026 Tuning**:
-    - Aligned with the latest (2026) Gemini model chain, prioritizing `gemini-flash-latest` and `gemini-2.5-flash` for high-frequency trading research.
-    - Optimized retry logic for `429` (Quota Exceeded) errors with intelligent exponential backoff and localized "Daily Limit" detection to prevent hang times.
-    - Improved backend robustness by shortening the fallback chain to the three most stable 2026-era models.
-- **Comparative AI Research**:
-    - The Deep Research chat now automatically detects multiple ticker symbols in a single query (e.g., "Compare SPY and QQQ").
-    - Injects price and 3-month performance data for all mentioned symbols into the AI's context for instant comparative analysis.
-- **High-Fidelity UI/UX Enhancements**:
-    - **Animating AI Borders**: Added a rotating rainbow conic-gradient border to AI chat bubbles to emphasize "Intelligence" responses.
-    - **AI Pulse Glow**: The "AI Pulse Verdict" card now features a dynamic animating pulse that changes color based on sentiment:
-        - **Bullish**: Emerald Green pulse.
-        - **Bearish**: Rose Red pulse.
-        - **Neutral**: Electric Purple pulse.
-    - **"AI Insight" Chart Button**: Added a dedicated glassmorphic AI button to the Symbol Chart header for quick access to the Pulse Verdict.
-    - **Omnisearch Evolution**: Synchronized the search bar's "Popular Assets" with the user's Macro Scanner settings. New custom symbols added to the scanner are now automatically prioritized in search results.
-- **Visual Polish**:
-    - Added basic Markdown support to chat responses (rendering `**bold**` and `*italic*` correctly).
-    - Implemented background scroll-locking when the Symbol Analysis modal is open to eliminate redundant scrollbars and improve focus.
-
 ### Fixed
-- **API Key Precedence**: Resolved a critical environment conflict where old system-level `GOOGLE_API_KEY` variables in Windows were overriding local project `.env` settings.
-- **Chart Interaction Alignment**: Fixed a mouse-coordinate mapping bug in the `StrategyPayoff` chart where the inspection dot drifted away from the cursor on high-DPI or scaled displays.
-- **Search Result Visibility**: Increased the maximum visible "Popular Assets" in search to 12 and added a scrollable results area to prevent newly added custom symbols from being clipped.
+- **Payoff Diagram Accuracy**:
+    - **Covered Call Synchronization**: Fixed the "flipped" appearance in Macro Opportunities by correctly including the underlying stock leg in the diagram data.
+    - **Width-Based Premium Simulation**: Implemented realistic premium calculation for Credit and Debit spreads based on strike width, ensuring payoff diagrams correctly display risk/reward profiles and loss zones.
+    - **Portfolio Diagram Centering**: Resolved issues where spread diagrams were centered on the option price (e.g., $0.44) by implementing robust `underlying_price` synchronization in the backend.
+- **Portfolio Strategy Intelligence**:
+    - **Advanced Strategy Detection**: Enhanced the grouping engine to specifically identify and label **Put Credit Spreads**, **Bull Call Debit Spreads**, **Bear Put Debit Spreads**, and **Call Credit Spreads**, replacing generic "Vertical Option Spread" labels.
+    - **Precision Leg Labeling**: Fixed a logic error in position side detection. All legs now accurately display **LONG** or **SHORT** labels based strictly on the API's side property, correctly reflecting the position's directional risk.
+
+## [2026-03-12] - Trade UX & Portfolio Refinement
 
 ### Fixed
 - **Chart Layout & Date Axis**: Resolved a height conflict in the Symbol Analysis view where the date axis was being truncated. Refactored the chart container to use `min-h-[500px]` with dynamic flex-scaling.

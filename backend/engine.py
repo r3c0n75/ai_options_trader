@@ -85,6 +85,10 @@ def generate_recommendations(symbols: list = None):
             if l_put_contract:
                 l_put_strike = l_put_contract['strike']
                 l_put_occ = l_put_contract['contractSymbol']
+                spread_width = abs(s_put_strike - l_put_strike)
+                s_put_prem = round(spread_width * 0.45, 2)
+                l_put_prem = round(spread_width * 0.15, 2)
+                
                 recs.append({
                     "symbol": symbol,
                     "strategy": "Put Credit Spread",
@@ -99,8 +103,8 @@ def generate_recommendations(symbols: list = None):
                         "underlying_price": current_price,
                         "strategy_type": "credit_spread",
                         "legs": [
-                            {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": round(current_price * 0.015, 2), "symbol": s_put_occ},
-                            {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": round(current_price * 0.005, 2), "symbol": l_put_occ}
+                            {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": s_put_prem, "symbol": s_put_occ},
+                            {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": l_put_prem, "symbol": l_put_occ}
                         ]
                     }
                 })
@@ -121,6 +125,7 @@ def generate_recommendations(symbols: list = None):
                     "underlying_price": current_price,
                     "strategy_type": "covered_call",
                     "legs": [
+                        {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price},
                         {"strike": s_call_strike, "side": "SELL", "type": "CALL", "premium": 3.20, "symbol": s_call_occ}
                     ]
                 }
@@ -154,6 +159,10 @@ def generate_recommendations(symbols: list = None):
             if s_call_otm_contract:
                 s_call_otm_strike = s_call_otm_contract['strike']
                 s_call_otm_occ = s_call_otm_contract['contractSymbol']
+                spread_width = abs(s_call_otm_strike - l_call_atm_strike)
+                l_call_prem = round(spread_width * 0.7, 2)
+                s_call_prem = round(spread_width * 0.2, 2)
+
                 recs.append({
                     "symbol": symbol,
                     "strategy": "Bull Call Debit Spread",
@@ -168,8 +177,8 @@ def generate_recommendations(symbols: list = None):
                         "underlying_price": current_price,
                         "strategy_type": "debit_spread",
                         "legs": [
-                            {"strike": l_call_atm_strike, "side": "BUY", "type": "CALL", "premium": 4.00, "symbol": l_call_atm_occ},
-                            {"strike": s_call_otm_strike, "side": "SELL", "type": "CALL", "premium": 1.50, "symbol": s_call_otm_occ}
+                            {"strike": l_call_atm_strike, "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_atm_occ},
+                            {"strike": s_call_otm_strike, "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_otm_occ}
                         ]
                     }
                 })

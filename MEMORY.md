@@ -42,8 +42,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Back-end Settlement Polling**: Covered Call execution now includes an internal polling loop (up to 10s) to wait for equity settlement before submitting the option leg, ensuring Buy-Writes succeed even on high-volume tickers like SPY.
 * **Portfolio & Positions Management**:
     - **Logical Strategy Grouping**: Stock and Short Call legs are automatically bundled into a single **Covered Call** strategy entry in the Portfolio table.
+    - **Precision Strategy Detection**: Enhanced the grouping logic to specifically identify and label common 2-leg strategies including **Put Credit Spreads**, **Bull Call Debit Spreads**, **Bear Put Debit Spreads**, and **Call Credit Spreads**.
     - **Strategy-Specific Payoff Scaling**: Refined the `StrategyPayoff` logic to ignore high stock cost bases in the zoom range, focusing exclusively on option strikes and premium breakevens for a consistent analytical view across both recommendations and portfolio positions.
-    - **Short Leg Detection**: Grouping logic explicitly checks the `side` property to account for absolute-value quantity normalization in the Alpaca API.
+    - **Short Leg Detection**: Grouping logic explicitly checks the `side` property to account for absolute-value quantity normalization in the Alpaca API, ensuring correct Payoff Diagram orientation.
 * **Symbol Analysis & AI Integration**:
     - **Context-Aware AI Buttons**: Trade suggestions now feature individualized "AI Insight" buttons that link directly to symbol-specific analysis modals.
     - **Visual Continuity**: The "AI Insight" badge is mirrored inside the Symbol Analysis modal for a cohesive premium experience.
@@ -72,6 +73,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Alpaca ID Ambiguity**: Alpaca Order IDs (UUIDs) can be confused with long OCC Option Symbols (21 chars) by simple length-based checks. Robust implementations should use UUID regex (`^[0-9a-f]{8}-...`) to ensure that closing a position doesn't accidentally trigger an order cancellation handler.
 * **After-Hours Liquidation**: Alpaca's `DELETE /positions` endpoint uses market orders for liquidation. For options, these orders cannot be queued when the market is closed. Systems must capture the "market is closed" 403/400 error and provide clear UI feedback to prevent user confusion.
 * **Sequential Multi-leg Liquidation**: When closing a spread, sending multiple async `DELETE` requests in parallel can lead to race conditions or incomplete refreshes. Sequential `await` loops in the frontend ensure that the platform state is fully consistent before the UI refreshes.
+* **Width-Based Premium Simulation**: To ensure realistic payoff diagrams (with visible breakevens and loss zones) in simulated recommendations, spread premiums should be calculated as a percentage of the strike width (e.g., ~30-50%) rather than a small percentage of the underlying price.
+* **Underlying Price Synchronization**: Alpaca often omits the `last_underlying_price` for option positions. The system must derive this by extracting the symbol from the OCC string (e.g., SBUX from SBUX260417P00095000) and syncing with the current market price of the corresponding stock position to ensure diagrams are centered correctly.
+* **Leg Side Normalization**: Because some APIs (like Alpaca) normalize short quantities to absolute values for display, the portfolio logic must rely strictly on the `side` (short/long) property for labeling and payoff calculation, rather than relying on the sign of the quantity.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.
