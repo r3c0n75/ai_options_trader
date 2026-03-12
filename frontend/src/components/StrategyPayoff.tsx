@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { calculateTheoreticalPnL } from '../utils/options_math';
 
 interface StrategyLeg {
   strike: number;
   side: 'BUY' | 'SELL';
   type: 'CALL' | 'PUT' | 'STOCK';
   premium: number;
+  dte?: number;
+  iv?: number;
 }
 
 interface StrategyDiagramData {
@@ -21,7 +24,7 @@ interface StrategyPayoffProps {
 export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
   const { underlying_price, legs = [] } = data;
   const [zoomLevel, setZoomLevel] = useState<number>(1.0); 
-  const [hoverData, setHoverData] = useState<{ price: number; pnl: number; x: number } | null>(null);
+  const [hoverData, setHoverData] = useState<{ price: number; pnl: number; currentPnl: number; x: number } | null>(null);
 
   // Calculate P&L for a single price point
   const calculatePnL = (price: number) => {
@@ -61,7 +64,7 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
   };
 
   // Generate data points for the SVG path
-  const points = useMemo(() => {
+  const allPoints = useMemo(() => {
     // Smart range: 
     // 1. Find furthest strike distance
     const maxStrikeDist = legs.length > 0 
@@ -87,22 +90,31 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
     const step = (maxPrice - minPrice) / 100;
 
     const result = [];
+    const currentResult = [];
+
     for (let i = 0; i <= 100; i++) {
       const p = minPrice + i * step;
       result.push({ price: p, pnl: calculatePnL(p) });
+      currentResult.push({ price: p, pnl: calculateTheoreticalPnL(p, legs as any) });
     }
-    return result;
+    return { points: result, currentPoints: currentResult };
   }, [underlying_price, legs, zoomLevel]);
+
+  const { points, currentPoints } = allPoints;
 
   const minPnL = useMemo(() => {
     if (!points.length) return 0;
-    return Math.min(...points.map((p: any) => p.pnl));
-  }, [points]);
+    const p1 = Math.min(...points.map((p: any) => p.pnl));
+    const p2 = Math.min(...currentPoints.map((p: any) => p.pnl));
+    return Math.min(p1, p2);
+  }, [points, currentPoints]);
 
   const maxPnLValue = useMemo(() => {
     if (!points.length) return 0;
-    return Math.max(...points.map((p: any) => p.pnl));
-  }, [points]);
+    const p1 = Math.max(...points.map((p: any) => p.pnl));
+    const p2 = Math.max(...currentPoints.map((p: any) => p.pnl));
+    return Math.max(p1, p2);
+  }, [points, currentPoints]);
 
   const maxPnLScale = useMemo(() => {
     const peak = Math.max(Math.abs(minPnL), Math.abs(maxPnLValue));
@@ -130,6 +142,10 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
   const linePath = useMemo(() => {
     return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(p.price)} ${yScale(p.pnl)}`).join(' ');
   }, [points]);
+
+  const currentLinePath = useMemo(() => {
+    return currentPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(p.price)} ${yScale(p.pnl)}`).join(' ');
+  }, [currentPoints]);
 
   // Create profit/loss areas
   const areas = useMemo(() => {
@@ -181,7 +197,12 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
     const price = minPrice + ((xInViewBox - margin) / (width - 2 * margin)) * (maxPrice - minPrice);
     
     if (price >= minPrice && price <= maxPrice) {
-      setHoverData({ price, pnl: calculatePnL(price), x: xInViewBox });
+      setHoverData({ 
+        price, 
+        pnl: calculatePnL(price), 
+        currentPnl: calculateTheoreticalPnL(price, legs as any),
+        x: xInViewBox 
+      });
     }
   };
 
@@ -189,7 +210,7 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
     <div className="bg-gray-950/60 p-4 rounded-xl border border-gray-800/50 mt-4 overflow-hidden">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-black tracking-widest text-gray-500 uppercase">Analysis Curve © EXP</span>
+          <span className="text-[10px] font-black tracking-widest text-gray-500 uppercase">Analysis Curve © EXP & NOW</span>
           <div className="flex items-center gap-1.5 bg-gray-950 rounded-xl p-1.5 border border-white/5 shadow-2xl">
             <button 
               onClick={(e: React.MouseEvent) => {
@@ -234,6 +255,10 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
             <div className="w-2 h-2 rounded-full bg-rose-500/50" />
             <span className="text-[10px] font-bold text-gray-400">Loss</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-1 rounded-full bg-orange-500" />
+            <span className="text-[10px] font-bold text-gray-400">Current P/L</span>
+          </div>
         </div>
       </div>
 
@@ -250,8 +275,11 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
         <path d={areas.profit} fill="#10b981" fillOpacity="0.15" />
         <path d={areas.loss} fill="#f43f5e" fillOpacity="0.15" />
 
-        {/* Payoff Line */}
+        {/* Payoff Line (Expiration) */}
         <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" />
+
+        {/* Payoff Line (Current Theoretical) */}
+        <path d={currentLinePath} fill="none" stroke="#f97316" strokeWidth="2" strokeLinejoin="round" strokeDasharray="4 2" />
 
         {/* Strike Markers */}
         {(legs || []).map((leg, i) => (
@@ -318,25 +346,39 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
               strokeDasharray="4 4"
               className="pointer-events-none"
             />
-            <circle cx={hoverData.x} cy={yScale(hoverData.pnl)} r="5" fill="#3b82f6" stroke="#fff" strokeWidth="1.5" />
+            <circle cx={hoverData.x} cy={yScale(hoverData.pnl)} r="4" fill="#3b82f6" stroke="#fff" strokeWidth="1" />
+            <circle cx={hoverData.x} cy={yScale(hoverData.currentPnl)} r="4" fill="#f97316" stroke="#fff" strokeWidth="1" />
             
             {/* Tooltip background */}
             <rect 
-              x={hoverData.x > width / 2 ? hoverData.x - 70 : hoverData.x + 10} 
-              y={yScale(hoverData.pnl) - 35} 
-              width="60" 
-              height="25" 
-              rx="4" 
+              x={hoverData.x > width / 2 ? hoverData.x - 80 : hoverData.x + 10} 
+              y={Math.min(yScale(hoverData.pnl), yScale(hoverData.currentPnl)) - 50} 
+              width="70" 
+              height="40" 
+              rx="6" 
               fill="#1e293b" 
-              className="shadow-xl"
+              className="shadow-2xl"
+              fillOpacity="0.9"
             />
             <text 
-              x={hoverData.x > width / 2 ? hoverData.x - 40 : hoverData.x + 40} 
-              y={yScale(hoverData.pnl) - 18} 
+              x={hoverData.x > width / 2 ? hoverData.x - 45 : hoverData.x + 45} 
+              y={Math.min(yScale(hoverData.pnl), yScale(hoverData.currentPnl)) - 35} 
               textAnchor="middle" 
-              className="text-[10px] font-bold fill-white"
+              className="text-[9px] font-bold fill-gray-400"
             >
-              {hoverData.pnl >= 0 ? '+' : '-'}${Math.abs(hoverData.pnl).toFixed(2)}
+              EXP: <tspan className="fill-blue-400">
+                {hoverData.pnl >= 0 ? '+' : '-'}${Math.abs(hoverData.pnl).toFixed(2)}
+              </tspan>
+            </text>
+            <text 
+              x={hoverData.x > width / 2 ? hoverData.x - 45 : hoverData.x + 45} 
+              y={Math.min(yScale(hoverData.pnl), yScale(hoverData.currentPnl)) - 22} 
+              textAnchor="middle" 
+              className="text-[9px] font-bold fill-gray-400"
+            >
+              NOW: <tspan className="fill-orange-400">
+                {hoverData.currentPnl >= 0 ? '+' : '-'}${Math.abs(hoverData.currentPnl).toFixed(2)}
+              </tspan>
             </text>
             <text 
               x={hoverData.x} 

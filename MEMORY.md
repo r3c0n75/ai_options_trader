@@ -58,6 +58,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Strategy Payoff Diagrams**: 
     * **High-Precision Mapping**: Resolved mouse-cursor drift by mapping screen coordinates to the SVG's internal coordinate space.
     * **Smart Auto-Scaling**: Frames strikes and premium breakevens dynamically.
+    * **Theoretical P/L Overlays**: Implemented **Black-Scholes** theoretical pricing to render a "Now" curve (Orange Dashed) alongside the "Exp" curve (Blue Solid), providing a realistic view of current strategy value vs expiration potential.
+    * **Dual-Valued Tooltips**: Hover inspection now displays synchronous data for both current and expiration P/L, color-coded for instant cognitive matching.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.

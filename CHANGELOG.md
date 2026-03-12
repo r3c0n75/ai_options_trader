@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Current Profitability Curve (Analysis Curve © NOW)**:
+    - Implemented a real-time theoretical P/L curve using the **Black-Scholes model** in the strategy payoff diagrams.
+    - Visualize "Current" vs "Expiration" potential simultaneously with a dashed orange line.
+    - Updated `App.tsx` and `groupOpenTrades` logic to pass metadata (DTE, IV) needed for theoretical pricing.
+- **Enhanced Chart Interaction**:
+    - Refined the inspection tooltip to show dual-values: **EXP (Blue)** and **NOW (Orange)**, color-coded to match the respective lines.
+    - Improved coordinate mapping in SVG charts to ensure frame-perfect hover accuracy at high zoom levels.
+
+### Added
 - **Top Macro Opportunities Toggle**:
     - Implemented a "Show All" / "Show Top 5" toggle in the Recommendations component, allowing users to switch between a focused view and the complete list of analyzed assets.
     - Updated the backend API to support an optional `limit` parameter for recommendations.
