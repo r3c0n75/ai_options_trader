@@ -12,10 +12,11 @@ interface ResearchSidecarProps {
 }
 
 const MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'State-of-the-Art Speed (Tier 1)' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'Next-Gen Intelligence (Tier 1)' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'High Throughput Stabilized' },
-  { id: 'gemini-pro-latest', name: 'Legacy Pro', desc: 'Universal Fallback' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Next-Gen Speed (Tier 1)' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'High-Throughput Stable' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'Next-Gen Reasoner (Tier 1)' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Most Capable Stable' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Balanced Performance' },
 ];
 
 export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, context }) => {

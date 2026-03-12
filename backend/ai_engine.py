@@ -20,10 +20,11 @@ def _get_model(model_name: str = None):
     model_id = name
     if "3.1-pro" in model_id: model_id = "gemini-3.1-pro-preview"
     elif "3-pro" in model_id: model_id = "gemini-3-pro-preview"
-    elif "3-flash" in model_id or "flash-latest" in model_id: model_id = "gemini-3-flash-preview"
-    elif "2.5-flash" in model_id: model_id = "gemini-2.5-flash"
-    elif "2.5-pro" in model_id: model_id = "gemini-2.5-pro"
-    elif "flash-8b" in model_id: model_id = "gemini-1.5-flash-8b" # Keep if exists
+    elif "3-flash" in model_id: model_id = "gemini-3-flash-preview"
+    elif "2.0-flash" in model_id: model_id = "gemini-2.0-flash"
+    elif "1.5-pro" in model_id: model_id = "gemini-1.5-pro"
+    elif "1.5-flash" in model_id or "flash-latest" in model_id: model_id = "gemini-1.5-flash"
+    elif "flash-8b" in model_id: model_id = "gemini-1.5-flash-8b"
     
     if not model_id.startswith("models/"):
         model_id = f"models/{model_id}"
@@ -43,7 +44,7 @@ def _get_model(model_name: str = None):
 def _generate_with_retry(model, prompt, max_retries=2):
     """Generates content with backoff and model walking."""
     # List of models to try in order of likely quota availability for this project
-    fallback_chain = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-3.1-pro-preview"]
+    fallback_chain = ["gemini-3-flash-preview", "gemini-1.5-flash", "gemini-3.1-pro-preview", "gemini-1.5-pro", "gemini-2.0-flash"]
     
     # Start with the requested model
     current_model_name = model.model_name.replace("models/", "")
