@@ -5,9 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Visual Branding**:
-    - **Custom Browser Tab Icon**: Replaced the default Vite favicon with a custom "AI Pulse" icon featuring a vibrant blue-to-emerald gradient and a white heartbeat line, matching the application's premium aesthetic.
-    - **Frontend Asset Management**: Created a dedicated `frontend/public` directory for persistent static assets and configured `index.html` to reference the new `/favicon.svg`.
+- **Top Macro Opportunities Toggle**:
+    - Implemented a "Show All" / "Show Top 5" toggle in the Recommendations component, allowing users to switch between a focused view and the complete list of analyzed assets.
+    - Updated the backend API to support an optional `limit` parameter for recommendations.
+
+### Fixed
+- **Covered Call Order Execution**:
+    - Resolved `invalid legs: missing symbol` error by filtering out non-option legs from the multi-leg options payload sent to Alpaca.
+    - Fixed `uncovered option contracts` eligibility error by implementing robust synchronization (polling and buffer delays) between underlying stock purchase and short call submission.
+    - Added an automatic "Emergency Retry" mechanism that waits for settlement if a covered call is initially rejected.
 
 
 ### Fixed

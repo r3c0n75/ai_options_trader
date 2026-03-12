@@ -214,9 +214,9 @@ def get_stock_historical_bars(symbol: str, period: str = "3M"):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/recommendations", response_model=List[TradeRecommendation])
-def get_top_recommendations(symbols: str = None):
+def get_top_recommendations(symbols: str = None, limit: int = None):
     symbol_list = symbols.split(",") if symbols else None
-    recs = generate_recommendations(symbols=symbol_list)
+    recs = generate_recommendations(symbols=symbol_list, limit=limit)
     return recs
 
 @app.get("/account", response_model=AccountResponse)
@@ -261,7 +261,11 @@ def execute_paper_trade(trade: TradeCreate):
         
         # Check if this is an options trade with legs
         if trade.legs and len(trade.legs) > 0:
-            legs_data = [{"symbol": leg.symbol, "side": leg.side, "ratio_qty": 1} for leg in trade.legs]
+            # Filter for only option legs (Alpaca mleg endpoint requires OCC symbols)
+            legs_data = [
+                {"symbol": leg.symbol, "side": leg.side, "ratio_qty": 1} 
+                for leg in trade.legs if leg.type.upper() in ["CALL", "PUT"]
+            ]
             
             # Handle Covered Call buy-write scenario
             if trade.strategy.lower() == "covered call":
@@ -279,9 +283,9 @@ def execute_paper_trade(trade: TradeCreate):
                     
                     # Robust polling to ensure Alpaca recognizes the "covered" status
                     import time
-                    max_retries = 12
+                    time.sleep(2) # Initial wait for order to process
+                    max_retries = 15
                     for i in range(max_retries):
-                        time.sleep(1)
                         positions = get_positions()
                         new_qty = 0
                         for p in positions:
@@ -289,9 +293,22 @@ def execute_paper_trade(trade: TradeCreate):
                                 new_qty = int(float(p.get("qty", 0)))
                                 break
                         if new_qty >= required_qty:
+                            # Final buffer wait for risk engine to sync
+                            time.sleep(2)
                             break
+                        time.sleep(1)
             
-            submit_options_order(trade.strategy, legs_data, trade.quantity)
+            # Final attempt to submit with error handling for "uncovered" race condition
+            try:
+                submit_options_order(trade.strategy, legs_data, trade.quantity)
+            except Exception as e:
+                if "uncovered option" in str(e).lower():
+                    # One last ditch effort sync wait
+                    import time
+                    time.sleep(5)
+                    submit_options_order(trade.strategy, legs_data, trade.quantity)
+                else:
+                    raise e
             
             return TradeResponse(
                 id=trade.symbol,

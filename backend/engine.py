@@ -25,7 +25,7 @@ def evaluate_market_health() -> dict:
         "description": description
     }
 
-def generate_recommendations(symbols: list = None):
+def generate_recommendations(symbols: list = None, limit: int = None):
     """
     Generates Top Trade ideas scanning across the provided symbols or MACRO_BASKET.
     """
@@ -125,7 +125,7 @@ def generate_recommendations(symbols: list = None):
                     "underlying_price": current_price,
                     "strategy_type": "covered_call",
                     "legs": [
-                        {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price},
+                        {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price, "symbol": symbol},
                         {"strike": s_call_strike, "side": "SELL", "type": "CALL", "premium": 3.20, "symbol": s_call_occ}
                     ]
                 }
@@ -253,8 +253,11 @@ def generate_recommendations(symbols: list = None):
                     }
                 })
             
-    # Mix up the recommendations and pick the best 5
+    # Mix up the recommendations
     import random
     random.shuffle(recs)
-    return recs[:6]
+    
+    if limit:
+        return recs[:limit]
+    return recs
 

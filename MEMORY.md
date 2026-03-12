@@ -19,7 +19,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Multi-model Selection**: User-facing dropdown for pivoting between Flash and Pro generations.
 * **Trade Recommendations (Top Macro Opportunities)**:
     - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
-    - **Enhanced Sorting**: Implemented alphabetical (Symbol) and strategy-based sorting with a persistent sort order toggle.
+    - **Enhanced Sorting & Viewing**: Implemented alphabetical (Symbol) and strategy-based sorting, alongside a new "Show All" toggle to expand the focused Top 5 opportunities list.
+    - **API Limit Support**: Backend `generate_recommendations` now supports an optional `limit` parameter for more flexible frontend layouts.
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations, now extended to include Symbol and Strategy fields.
 * **Macro Scanner (ETFScanner)**:
     - **Asset Sorting**: Integrated Symbol and Change % sorting to allow for quick scanning of top-performing or specific assets.
@@ -42,7 +43,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Manual Redirect Robustness**: Implemented a 10s polling window in the frontend to wait for Alpaca trade synchronization. This ensures new positions are visible before highlighting.
     - **High-Frequency Monitoring**: Reduced portfolio auto-refresh interval from 30s to 5s for near real-time tracking of positions and P/L.
     - **Stable Row State**: Replaced `Math.random()` keys with deterministic ID strings to prevent UI flickering and "ghost" highlights in the Portfolio table.
-    - **Back-end Settlement Polling**: Covered Call execution now includes an internal polling loop (up to 10s) to wait for equity settlement before submitting the option leg, ensuring Buy-Writes succeed even on high-volume tickers like SPY.
+    - **Back-end Settlement Polling**: Covered Call execution now includes an internal polling loop (up to 15s) and a 5s "Emergency Retry" mechanism to wait for equity settlement before submitting the option leg.
+    - **Option-Only Payloads**: Automatically filters out stock legs from multi-leg option orders to comply with Alpaca API requirements for OCC symbols.
 * **Portfolio & Positions Management**:
     - **Logical Strategy Grouping**: Stock and Short Call legs are automatically bundled into a single **Covered Call** strategy entry in the Portfolio table.
     - **Precision Strategy Detection**: Enhanced the grouping logic to specifically identify and label common 2-leg strategies including **Put Credit Spreads**, **Bull Call Debit Spreads**, **Bear Put Debit Spreads**, and **Call Credit Spreads**.

@@ -45,6 +45,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
   const [selectedTrade, setSelectedTrade] = useState<Recommendation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasSuccess, setHasSuccess] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const parsePop = (pop: string) => parseInt(pop.replace('%', '')) || 0;
   
@@ -72,6 +73,8 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
       
       return sortOrder === 'desc' ? comparison : -comparison;
     });
+
+  const visibleRecs = showAll ? processedRecs : processedRecs.slice(0, 5);
 
   const fetchRecs = async () => {
     setLoading(true);
@@ -147,7 +150,16 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
             <Zap className="text-yellow-400 w-6 h-6" />
             Top Macro Opportunities
           </h2>
-          <p className="text-gray-400 text-sm mt-1">Autonomous evaluation across SPY, QQQ, TMF, etc.</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-400 text-sm">Autonomous evaluation across SPY, QQQ, TMF, etc.</p>
+            <div className="h-4 w-px bg-gray-800" />
+            <button 
+              onClick={() => setShowAll(!showAll)}
+              className={`text-xs font-bold transition-colors ${showAll ? 'text-blue-400 hover:text-blue-300' : 'text-gray-500 hover:text-gray-400'}`}
+            >
+              {showAll ? 'Show Top 5' : 'Show All'}
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
@@ -228,7 +240,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
         </div>
       ) : (
         <div className="grid gap-4">
-          {processedRecs.map((rec, idx) => (
+          {visibleRecs.map((rec, idx) => (
             <div 
               key={idx} 
               onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
