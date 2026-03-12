@@ -70,6 +70,7 @@ function App() {
   const [searchedSymbol, setSearchedSymbol] = useState<string | null>(null);
   const [portfolioPeriod, setPortfolioPeriod] = useState<string>('1D');
   const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
+  const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
 
   const parseOCC = (symbol: string) => {
     const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
@@ -81,10 +82,9 @@ function App() {
       strike: parseInt(match[4], 10) / 1000
     };
   };
-  const groupOpenTrades = () => {
+    const groupOpenTrades = () => {
     const openTrades = trades.filter(t => t.status === 'OPEN');
     const groups: any[] = [];
-    const optionsByUnderlying = new Map<string, any[]>();
 
     const calculateDTE = (occSymbol: string) => {
       const occ = parseOCC(occSymbol);
@@ -104,92 +104,163 @@ function App() {
       if (dte <= 7) return 'warning';
       return 'none';
     };
+    
+    // 1. Separate Stocks and Options
+    const stocks: TradeResponse[] = [];
+    const options: (TradeResponse & { occ: any; dte: number | null })[] = [];
 
     openTrades.forEach(t => {
       const occ = parseOCC(t.symbol);
-      const dte = calculateDTE(t.symbol);
-      
       if (occ) {
-        if (!optionsByUnderlying.has(occ.underlying)) optionsByUnderlying.set(occ.underlying, []);
-        optionsByUnderlying.get(occ.underlying)!.push({ ...t, dte });
+        options.push({ ...t, occ, dte: calculateDTE(t.symbol) });
       } else {
-        groups.push({...t, 
+        stocks.push(t);
+      }
+    });
+
+    // 2. Identify Covered Calls
+    // Logic: If we have a stock position (e.g. SBUX, 100 shares) AND a short call (e.g. SBUX...C..., -1 contract).
+    const pairedOptionIds = new Set<string>();
+    const usedStockIndices = new Set<number>();
+
+    stocks.forEach((stock, stockIdx) => {
+      // Find a matching short call
+      // Assumes 100 shares per contract
+      const contractCount = Math.floor(stock.quantity / 100);
+      if (contractCount > 0) {
+        // Look for any short call on the same underlying
+        const matchingShortCall = options.find(opt => 
+          !pairedOptionIds.has(opt.id) && 
+          opt.occ.underlying === stock.symbol && 
+          opt.occ.type === 'CALL' && 
+          (opt.side === 'short' || opt.quantity < 0) &&
+          Math.abs(opt.quantity) === contractCount
+        );
+
+        if (matchingShortCall) {
+          pairedOptionIds.add(matchingShortCall.id);
+          usedStockIndices.add(stockIdx);
+
+          // Create combined Covered Call entry
+          groups.push({
+            id: `cc-${stock.symbol}-${matchingShortCall.id}`,
+            symbol: stock.symbol,
+            strategy: "Covered Call",
+            isSpread: true,
+            market_value: stock.market_value + matchingShortCall.market_value,
+            unrealized_pl: stock.unrealized_pl + matchingShortCall.unrealized_pl,
+            unrealized_plpc: (stock.unrealized_pl + matchingShortCall.unrealized_pl) / (Math.abs(stock.entry_price * stock.quantity) + Math.abs(matchingShortCall.entry_price * matchingShortCall.quantity * 100) || 1) * 100,
+            status: "OPEN",
+            side: "MULTI",
+            quantity: `${contractCount} Contract(s)`,
+            dte: matchingShortCall.dte,
+            riskLevel: getRiskLevel(matchingShortCall.dte, matchingShortCall.unrealized_plpc),
+            diagram_data: {
+              underlying_price: stock.current_price || stock.entry_price,
+              strategy_type: "covered_call",
+              legs: [
+                {
+                  strike: stock.entry_price,
+                  side: 'BUY',
+                  type: 'STOCK',
+                  premium: stock.entry_price
+                },
+                {
+                  strike: matchingShortCall.occ.strike,
+                  side: 'SELL',
+                  type: 'CALL',
+                  premium: matchingShortCall.entry_price
+                }
+              ]
+            },
+            legDetails: [stock, matchingShortCall]
+          });
+        }
+      }
+    });
+
+    // 3. Add remaining stocks
+    stocks.forEach((stock, idx) => {
+      if (!usedStockIndices.has(idx)) {
+        groups.push({...stock, 
           isSpread: false,
           dte: null,
           riskLevel: 'none',
-          legDetails: [t],
+          legDetails: [stock],
           diagram_data: {
-            underlying_price: t.current_price || t.entry_price,
+            underlying_price: stock.current_price || stock.entry_price,
             strategy_type: "long_stock",
             legs: [{
-              strike: t.entry_price || t.current_price,
-              side: (t.side?.toLowerCase() === 'short' || t.side?.toLowerCase() === 'sell') ? 'SELL' : 'BUY',
+              strike: stock.entry_price || stock.current_price,
+              side: (stock.side?.toLowerCase() === 'short' || stock.side?.toLowerCase() === 'sell') ? 'SELL' : 'BUY',
               type: 'STOCK',
-              premium: t.entry_price || t.current_price
+              premium: stock.entry_price || stock.current_price
             }]
           }
         });
       }
     });
-    
-    optionsByUnderlying.forEach((options, underlying) => {
-      const totalMarketValue = options.reduce((sum, opt) => sum + opt.market_value, 0);
-      const totalPl = options.reduce((sum, opt) => sum + opt.unrealized_pl, 0);
-      const avgPlpc = options.reduce((sum, opt) => sum + opt.unrealized_plpc, 0) / options.length;
+
+    // 4. Group remaining options (Spreads or Naked)
+    const remainingOptions = options.filter(opt => !pairedOptionIds.has(opt.id));
+    const optionsByUnderlying = new Map<string, any[]>();
+
+    remainingOptions.forEach(opt => {
+      if (!optionsByUnderlying.has(opt.occ.underlying)) optionsByUnderlying.set(opt.occ.underlying, []);
+      optionsByUnderlying.get(opt.occ.underlying)!.push(opt);
+    });
+
+    optionsByUnderlying.forEach((opts, underlying) => {
+      const totalMarketValue = opts.reduce((sum, opt) => sum + opt.market_value, 0);
+      const totalPl = opts.reduce((sum, opt) => sum + opt.unrealized_pl, 0);
+      const avgPlpc = opts.reduce((sum, opt) => sum + opt.unrealized_plpc, 0) / opts.length;
       
-      // Calculate min DTE for the strategy
-      const minDte = Math.min(...options.map(o => (o as any).dte ?? 999));
+      const minDte = Math.min(...opts.map(o => o.dte ?? 999));
       const riskLevel = getRiskLevel(minDte === 999 ? null : minDte, avgPlpc);
 
-      let strategyName = `${options.length}-Leg Strategy`;
+      let strategyName = `${opts.length}-Leg Strategy`;
       let strategyType = "custom";
-      if (options.length === 1) strategyName = `Long ${parseOCC(options[0].symbol)?.type}`;
-      if (options.length === 2) {
+      if (opts.length === 1) {
+        const isShort = opts[0].side === 'short' || opts[0].quantity < 0;
+        strategyName = `${isShort ? 'Short' : 'Long'} ${opts[0].occ.type}`;
+        strategyType = opts[0].occ.type === 'CALL' 
+          ? (isShort ? 'short_call' : 'long_call') 
+          : (isShort ? 'short_put' : 'long_put');
+      } else if (opts.length === 2) {
          strategyName = "Vertical Option Spread";
          strategyType = "debit_spread";
       }
-      if (options.length === 4) {
-          strategyName = "Iron Condor";
-          strategyType = "iron_condor";
-      }
       
-      const strikes = options.map(o => parseOCC(o.symbol)?.strike || 0);
-      const approxUnderlying = strikes.reduce((a,b)=>a+b,0) / strikes.length;
-
-      const legs = options.map(opt => {
-         const occ = parseOCC(opt.symbol)!;
-         return {
-           strike: occ.strike,
-           side: opt.quantity > 0 ? ('BUY' as const) : ('SELL' as const),
-           type: occ.type as ('CALL' | 'PUT'),
-           premium: opt.entry_price || Math.abs(opt.current_price) 
-         };
-      });
+      const legs = opts.map(opt => ({
+        strike: opt.occ.strike,
+        side: opt.quantity > 0 ? ('BUY' as const) : ('SELL' as const),
+        type: opt.occ.type as ('CALL' | 'PUT'),
+        premium: opt.entry_price || Math.abs(opt.current_price) 
+      }));
 
       groups.push({
-        id: `mleg-${underlying}`,
+        id: `mleg-${underlying}-${opts.map(o => o.id).sort().join('-')}`,
         symbol: underlying,
         strategy: strategyName,
         isSpread: true,
-        current_price: 0,
         market_value: totalMarketValue,
         unrealized_pl: totalPl,
         unrealized_plpc: avgPlpc,
         status: "OPEN",
         side: "MULTI",
-        quantity: "1 Spread",
+        quantity: opts.length > 1 ? "1 Spread" : `${Math.abs(opts[0].quantity)} Contract(s)`,
         dte: minDte === 999 ? null : minDte,
         riskLevel: riskLevel,
         diagram_data: {
-          underlying_price: approxUnderlying,
+          underlying_price: opts[0].current_price || opts[0].entry_price,
           strategy_type: strategyType,
           legs: legs
         },
-        legDetails: options
+        legDetails: opts
       });
     });
     
-    return groups.sort((a,b) => b.market_value - a.market_value);
+    return groups.sort((a,b) => (b.market_value || 0) - (a.market_value || 0));
   };
 
   const getPortfolioLabels = () => {
@@ -268,6 +339,30 @@ function App() {
       console.error('Error closing position:', error);
       return { success: false, message: error.message || 'Network error' };
     }
+  };
+
+  const handleTradeSuccess = async (symbol: string) => {
+    setActiveTab('portfolio');
+    setHighlightedSymbol(symbol);
+    
+    // Poll for up to 10 seconds for the new position to appear
+    for (let i = 0; i < 10; i++) {
+      await fetchData();
+      // Check if it's in the current trades
+      const currentTrades = await (await fetch('http://localhost:8000/trades')).json();
+      if (currentTrades.some((t: any) => {
+        if (t.symbol === symbol) return true;
+        // Check if it's an OCC symbol for this underlying
+        const occ = parseOCC(t.symbol);
+        return occ && occ.underlying === symbol;
+      })) {
+        break;
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    
+    // Clear highlight after 10 seconds
+    setTimeout(() => setHighlightedSymbol(null), 10000);
   };
 
 
@@ -360,7 +455,7 @@ function App() {
             )}
 
             <div className="lg:col-span-3">
-              <Recommendations onAnalyze={setSearchedSymbol} />
+              <Recommendations onAnalyze={setSearchedSymbol} onTradeSuccess={handleTradeSuccess} />
             </div>
           </main>
         )}
@@ -564,7 +659,7 @@ function App() {
                         <Fragment key={t.id}>
                           <tr 
                             onClick={t.diagram_data ? () => setExpandedOptionId(expandedOptionId === t.id ? null : t.id) : undefined}
-                            className={`hover:bg-gray-800/30 transition-colors group ${t.diagram_data ? 'cursor-pointer' : ''}`}
+                            className={`hover:bg-gray-800/30 transition-all group ${t.diagram_data ? 'cursor-pointer' : ''} ${highlightedSymbol === t.symbol ? 'bg-blue-500/10 border-l-2 border-blue-500 animate-pulse' : ''}`}
                           >
                             <td className="py-5 px-6">
                               <div className="flex items-center gap-2">

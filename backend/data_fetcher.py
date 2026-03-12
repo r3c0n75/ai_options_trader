@@ -80,7 +80,7 @@ def get_options_chain(symbol: str = "SPY"):
     try:
         # Fetch active contracts from Alpaca
         today = datetime.utcnow().strftime('%Y-%m-%d')
-        url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=1000"
+        url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=10000"
         response = httpx.get(url, headers=get_headers())
         
         if response.status_code != 200:
@@ -96,10 +96,17 @@ def get_options_chain(symbol: str = "SPY"):
         if not expirations:
             return _yfinance_options_fallback(symbol, current_price)
             
-        nearest_expiry = expirations[0]
+        target_date = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d')
+        suitable_expiries = [e for e in expirations if e >= target_date]
         
-        # Filter contracts for nearest expiry
-        target_contracts = [c for c in contracts if c['expiration_date'] == nearest_expiry]
+        if suitable_expiries:
+            selected_expiry = suitable_expiries[0]
+        else:
+            # Fallback to furthest available if none are >= 30 days
+            selected_expiry = expirations[-1]
+            
+        # Filter contracts for selected expiry
+        target_contracts = [c for c in contracts if c['expiration_date'] == selected_expiry]
         
         calls = [c for c in target_contracts if c['type'] == 'call']
         puts = [c for c in target_contracts if c['type'] == 'put']
@@ -135,7 +142,7 @@ def get_options_chain(symbol: str = "SPY"):
                 'type': 'put'
             })
         return {
-            "expiration": nearest_expiry, 
+            "expiration": selected_expiry, 
             "current_price": current_price,
             "calls": formatted_calls,
             "puts": formatted_puts,
@@ -154,8 +161,15 @@ def _yfinance_options_fallback(symbol: str, current_price: float):
         if not expirations:
             return None
 
-        nearest_expiry = expirations[0]
-        opt_chain = ticker.option_chain(nearest_expiry)
+        target_date = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d')
+        suitable_expiries = [e for e in expirations if e >= target_date]
+        
+        if suitable_expiries:
+            selected_expiry = suitable_expiries[0]
+        else:
+            selected_expiry = expirations[-1]
+
+        opt_chain = ticker.option_chain(selected_expiry)
         
         calls = opt_chain.calls
         puts = opt_chain.puts
@@ -164,7 +178,7 @@ def _yfinance_options_fallback(symbol: str, current_price: float):
         puts = puts[(puts['strike'] <= current_price * 1.05)]
 
         return {
-            "expiration": nearest_expiry, 
+            "expiration": selected_expiry, 
             "current_price": current_price,
             "calls": calls.to_dict('records')[:10],
             "puts": puts.to_dict('records')[-10:],

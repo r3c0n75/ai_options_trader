@@ -273,12 +273,22 @@ def execute_paper_trade(trade: TradeCreate):
                 
                 required_qty = trade.quantity * 100
                 if current_qty < required_qty:
-                    # Inject an equity buy leg to make it a Buy-Write
-                    legs_data.append({
-                        "symbol": trade.symbol,
-                        "side": "buy",
-                        "ratio_qty": 100
-                    })
+                    # Submit separate equity order instead of mixing legs (Alpaca constraint)
+                    submit_order(trade.symbol, required_qty - current_qty, "buy")
+                    
+                    # Robust polling to ensure Alpaca recognizes the "covered" status
+                    import time
+                    max_retries = 12
+                    for i in range(max_retries):
+                        time.sleep(1)
+                        positions = get_positions()
+                        new_qty = 0
+                        for p in positions:
+                            if p["symbol"] == trade.symbol:
+                                new_qty = int(float(p.get("qty", 0)))
+                                break
+                        if new_qty >= required_qty:
+                            break
             
             submit_options_order(trade.strategy, legs_data, trade.quantity)
             

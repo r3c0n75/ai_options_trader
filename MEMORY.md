@@ -34,6 +34,15 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Robust Liquidation**: Features a premium red elliptical "Close" button for all positions. Backend uses UUID regex to safely differentiate between orders (cancel) and positions (liquidate).
     * **Covered Call Buy-Write Fallback**: Automatically detects missing underlying equity for Covered Call strategies and injects a stock "buy" leg into the multi-leg order, effectively executing a Buy-Write to satisfy Alpaca tier requirements.
     * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
+* **Trade Confirmation & Execution**:
+    - **Multi-Stage Lifecycle**: Added `idle`, `processing`, `success`, and `error` states to the trade modal.
+    - **Manual Redirect Robustness**: Implemented a 10s polling window in the frontend to wait for Alpaca trade synchronization. This ensures new positions are visible before highlighting.
+    - **Stable Row State**: Replaced `Math.random()` keys with deterministic ID strings to prevent UI flickering and "ghost" highlights in the Portfolio table.
+    - **Back-end Settlement Polling**: Covered Call execution now includes an internal polling loop (up to 10s) to wait for equity settlement before submitting the option leg, ensuring Buy-Writes succeed even on high-volume tickers like SPY.
+* **Portfolio & Positions Management**:
+    - **Logical Strategy Grouping**: Stock and Short Call legs are automatically bundled into a single **Covered Call** strategy entry in the Portfolio table.
+    - **Strategy-Specific Payoff Scaling**: Refined the `StrategyPayoff` logic to ignore high stock cost bases in the zoom range, focusing exclusively on option strikes and premium breakevens for a consistent analytical view across both recommendations and portfolio positions.
+    - **Short Leg Detection**: Grouping logic explicitly checks the `side` property to account for absolute-value quantity normalization in the Alpaca API.
 * **Symbol Analysis & AI Integration**:
     - **Context-Aware AI Buttons**: Trade suggestions now feature individualized "AI Insight" buttons that link directly to symbol-specific analysis modals.
     - **Visual Continuity**: The "AI Insight" badge is mirrored inside the Symbol Analysis modal for a cohesive premium experience.

@@ -50,6 +50,25 @@ All notable changes to this project will be documented in this file.
 - **AI Pulse Truncation**: Fixed a prompt typo in `ai_engine.py` where a "2-char" constraint was erroneously requested for the thesis, restoring full 2-sentence analytical output.
 - **Analysis State Resilience**: Provided default fallback values for trend metrics to ensure the UI remains stable during initial symbol loads.
 
+## [2026-03-12] - Trade UX & Portfolio Refinement
+
+### Added
+- **Multi-Stage Trade Confirmation**:
+    - Enhanced the `TradeConfirmationModal` with four distinct states: **Idle**, **Processing** (with animated spinner), **Success** (fill confirmation), and **Error** (clear descriptive messaging).
+    - **Manual Portfolio Redirect**: Redirect to the Portfolio screen is now user-controlled. The modal remains in the **Success** state until the "Done" button is clicked, preventing abrupt navigation.
+- **Robust Covered Call Execution**:
+    - Implemented a backend polling verification loop that ensures underlying equity is fully settled and recognized by Alpaca's risk engine before submitting the option leg, eliminating "uncovered option" 403 errors.
+- **Logical Portfolio Grouping**:
+    - Implemented `groupOpenTrades` logic to automatically pair underlying stock (100 shares) with corresponding short calls on the same symbol.
+    - Grouped positions are presented as a single **"Covered Call"** line item with consolidated P/L, market value, and strategy-specific payoff diagrams.
+
+### Fixed
+- **Manual Redirect Robustness**: Resolved a race condition where the Portfolio redirect could fail if state transitions were interrupted. Reversed state update order and added explicit "Order Confirmed" instructions to the success screen for better UX clarity.
+- **Robust Position Highlighting**: Implemented a polling mechanism in `App.tsx` that waits for up to 10 seconds for new positions to be recognized by the Alpaca API before triggering navigation highlights.
+- **Stable UI Keys**: Replaced unstable random IDs with deterministic keys for multi-leg strategies, ensuring consistent row rendering and accurate visual feedback.
+- **Covered Call Grouping Bug**: Resolved an issue where short legs were missed during grouping because the Alpaca API normalizes short quantities to absolute values. The system now cross-references the `side` property to correctly detect short legs.
+- **Portfolio Chart Scaling**: Refined the zoom factor in `StrategyPayoff.tsx` to exclude the stock leg's cost basis from the range calculation. This ensures Covered Call charts are zoomed in tightly on the option strikes, matching the high-detail view of the Recommendations screen.
+
 ## [2026-03-12]
 
 ### Added

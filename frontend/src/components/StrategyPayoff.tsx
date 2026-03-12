@@ -68,8 +68,12 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
       ? Math.max(...legs.map(l => Math.abs(l.strike - underlying_price)))
       : 0;
     
-    // 2. Consider total premium as a range factor (especially for straddles)
-    const totalPremium = legs.reduce((sum, l) => sum + (l.premium || 0), 0);
+    // 2. Consider total premium as a range factor (exclude stock price as it distorts zoom)
+    const totalPremium = legs.reduce((sum, l) => {
+      const typeRaw = (l.type || '').toString().toUpperCase().trim();
+      const isStock = typeRaw === 'STOCK' || typeRaw === 'EQUITY';
+      return sum + (isStock ? 0 : (l.premium || 0));
+    }, 0);
     
     // 3. Set a minimum floor (5% of underlying) so it doesn't look 'thin'
     const priceFloor = underlying_price * 0.05;

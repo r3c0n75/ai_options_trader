@@ -31,9 +31,10 @@ interface Recommendation {
 
 interface RecommendationsProps {
   onAnalyze: (symbol: string) => void;
+  onTradeSuccess?: (symbol: string) => void;
 }
 
-export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) => {
+export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onTradeSuccess }) => {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [tradeStatus, setTradeStatus] = useState<{message: string, isError: boolean} | null>(null);
@@ -43,6 +44,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) =
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<Recommendation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [hasSuccess, setHasSuccess] = useState(false);
 
   const parsePop = (pop: string) => parseInt(pop.replace('%', '')) || 0;
   
@@ -94,11 +96,11 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) =
 
   const openOrderModal = (rec: Recommendation) => {
     setSelectedTrade(rec);
+    setHasSuccess(false);
     setIsModalOpen(true);
   };
 
   const executePaperTrade = async (rec: Recommendation, quantity: number) => {
-    setIsModalOpen(false);
     try {
       const res = await fetch('http://localhost:8000/trades', {
         method: 'POST',
@@ -117,25 +119,24 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) =
       
       const data = await res.json();
       
-      if (res.ok) {
-        setTradeStatus({
-          message: `Successfully executed paper trade for ${quantity}x ${rec.symbol} ${rec.strategy}`,
-          isError: false
-        });
-        setTimeout(() => setTradeStatus(null), 5000);
-      } else {
-        setTradeStatus({
-          message: `Trade Failed: ${data.detail || 'Unknown error from server'}`,
-          isError: true
-        });
+      if (!res.ok) {
+        throw new Error(data.detail || 'Unknown error from server');
       }
-    } catch (err) {
+      
+      // We don't close the modal or navigate here anymore.
+      // The modal stays in 'success' state until user clicks 'Done'.
+      setHasSuccess(true);
+    } catch (err: any) {
       console.error(err);
-      setTradeStatus({
-        message: "Network Error: Could not connect to the trading server.",
-        isError: true
-      });
+      throw err;
     }
+  };
+
+  const handleModalClose = () => {
+    if (hasSuccess && onTradeSuccess && selectedTrade) {
+      onTradeSuccess(selectedTrade.symbol);
+    }
+    setIsModalOpen(false);
   };
 
   return (
@@ -258,10 +259,14 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) =
                      {rec.thesis}
                    </p>
 
-                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                      <div>
                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Target Entry</div>
                        <div className="font-mono text-sm text-gray-200">{rec.target_entry}</div>
+                     </div>
+                     <div>
+                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Expiration</div>
+                       <div className="font-mono text-sm text-blue-400">{rec.expiration}</div>
                      </div>
                      <div>
                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Win Prob (POP)</div>
@@ -318,9 +323,9 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) =
       )}
 
       <TradeConfirmationModal 
-        isOpen={isModalOpen}
-        trade={selectedTrade}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isModalOpen} 
+        trade={selectedTrade} 
+        onClose={handleModalClose}
         onConfirm={executePaperTrade}
       />
     </div>
