@@ -44,12 +44,13 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **ATM Strike Proximity**: High-priced assets with high liquidity (QQQ) require strike selection based on absolute price proximity rather than index-based slicing of a range. This prevents "ITM bias" in payoff diagrams where the selection window fails to reach the current price.
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
 * **Low-Impact Strategy Scaling**: Strategies on low-priced assets (TMF) collecting small premiums ($0.50) initially appeared as flat lines due to a fixed +/- $10 P/L axis. Switching to a percentage-based adaptive Y-axis (Peak * 1.25) ensures clear visual feedback regardless of absolute dollar amounts.
-* **Gemini Engine Robustness (v2.3)**:
-    - Updated default models to **`gemini-3-flash-preview`** to leverage Tier 1 provisioned credits and throughput.
-    - Implemented a "normalization chimney" and resolution cache in `ai_engine.py` to prevent 404s and redundant model metadata calls.
+* **Gemini Engine Robustness (v2.4 - Rate Limit Rescue)**:
+    - **Tier Alignment**: Fully aligned with Google AI Studio **Tier 1 (Paid)** quotas.
+    - **API Key Tier Stickiness**: Discovered that existing API keys can remain "stuck" in Free Tier logic even after billing is enabled. Resolved by regenerating a fresh key for the Tier 1 project.
+    - **Dual-Track Fallback**: Backend now implements a "Model Walking" strategy in `ai_engine.py`. If a high-speed preview model (e.g., `gemini-3-flash`) hits a burst limit (429), it automatically cycles through `gemini-2.5-flash`, `gemini-2.0-flash`, and stable `gemini-1.5-flash` with exponential backoff.
     - **Performance Injection**: The research sidecar now receives quantitative **3M and 12M trend data**, enabling contextual reasoning over price performance.
-    - **Response Engineering**: Implemented strict conciseness constraints (max 3-4 paragraphs) and high-density data formatting (bolding metrics) to prevent analytical bloat.
-    - **ResourceExhausted (429) Resiliency**: Enhanced the fallback chain to rotate through Tier 1 preview models (Flash 3.0 -> Pro 3.1) with exponential backoff.
+    - **Response Engineering**: Implemented strict conciseness constraints (max 3-4 paragraphs) and high-density data formatting (bolding metrics).
+    - **Transparent Error Telemetry**: UI now displays raw API error messages (e.g., "Monthly Spend Cap hit") instead of silent failures, significantly improving the diagnostic loop for the end user.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

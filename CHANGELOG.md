@@ -11,13 +11,18 @@ All notable changes to this project will be documented in this file.
 - **12 Month (1Y) Charting**:
     - Added `12M` period support to both the primary and analysis chart views.
     - Integrated with Alpaca/yfinance backends to fetch full-year daily bars as a new historical benchmark.
-- **Gemini Tier 1 Model Architecture**:
-    - Updated default models to `gemini-3-flash-preview` and `gemini-3.1-pro-preview` to leverage Tier 1 provisioned throughput and credits.
-    - Implemented model normalization and persistent model caching in `ai_engine.py` to prevent redundant resolution calls.
-    - Enhanced the fallback chain to prioritize Tier 1 preview models, significantly reducing 429 and 404 errors.
+- **Gemini Engine Robustness (v2.4 - Rate Limit Rescue)**:
+    - **Tier Alignment**: Fully aligned with Google AI Studio **Tier 1 (Paid)** quotas.
+    - **API Key Tier Stickiness**: Discovered that existing API keys can remain "stuck" in Free Tier logic even after billing is enabled. Resolved by regenerating a fresh key for the Tier 1 project.
+    - **Dual-Track Fallback**: Backend now implements a "Model Walking" strategy. If `gemini-3-flash` hits a burst limit (429), it automatically drifts down to `gemini-2.5-flash`, then `gemini-2.0-flash`, and finally stable `gemini-1.5-flash`.
+    - **Metric Awareness**: The research sidecar now receives quantitative **3M and 12M trend data**, enabling contextual reasoning over price performance.
+    - **Response Engineering**: Implemented strict conciseness constraints (max 3-4 paragraphs) and high-density data formatting (bolding metrics).
+    - **Transparent Error Telemetry**: UI now displays raw API error messages (e.g., "Monthly Spend Cap hit") instead of silent failures, significantly improving the diagnostic loop for the end user.
 - **AI Response Engineering**:
     - Optimized the Research Assistant prompt to enforce extreme conciseness (max 3-4 paragraphs).
     - Added explicit instructions to prioritize quantitative data (Price, Greeks, Trends) and use bolding for key metrics.
+- **Frontend AI Model Control**:
+    - Added a manual model selection dropdown in the **ResearchSidecar** to allow users to pivot between generations (Flash 2.0/3.0, Pro 1.5/3.1) during high-traffic periods.
 
 ### Fixed
 - **Chart Layout & Date Axis**: Resolved a height conflict in the Symbol Analysis view where the date axis was being truncated. Refactored the chart container to use `min-h-[500px]` with dynamic flex-scaling.
