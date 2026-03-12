@@ -37,6 +37,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Trade Confirmation & Execution**:
     - **Multi-Stage Lifecycle**: Added `idle`, `processing`, `success`, and `error` states to the trade modal.
     - **Manual Redirect Robustness**: Implemented a 10s polling window in the frontend to wait for Alpaca trade synchronization. This ensures new positions are visible before highlighting.
+    - **High-Frequency Monitoring**: Reduced portfolio auto-refresh interval from 30s to 5s for near real-time tracking of positions and P/L.
     - **Stable Row State**: Replaced `Math.random()` keys with deterministic ID strings to prevent UI flickering and "ghost" highlights in the Portfolio table.
     - **Back-end Settlement Polling**: Covered Call execution now includes an internal polling loop (up to 10s) to wait for equity settlement before submitting the option leg, ensuring Buy-Writes succeed even on high-volume tickers like SPY.
 * **Portfolio & Positions Management**:

@@ -325,7 +325,7 @@ function App() {
   }, [portfolioPeriod]);
 
   useEffect(() => {
-    const interval = setInterval(fetchData, 30000); // Refresh every 30s
+    const interval = setInterval(fetchData, 5000); // Refresh every 5s
     return () => clearInterval(interval);
   }, [portfolioPeriod]);
 

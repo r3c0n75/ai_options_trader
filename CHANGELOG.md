@@ -63,6 +63,7 @@ All notable changes to this project will be documented in this file.
     - Grouped positions are presented as a single **"Covered Call"** line item with consolidated P/L, market value, and strategy-specific payoff diagrams.
 
 ### Fixed
+- **High-Frequency Portfolio Refresh**: Increased the auto-refresh rate of portfolio positions and account data from 30 seconds to 5 seconds for more responsive real-time monitoring.
 - **Manual Redirect Robustness**: Resolved a race condition where the Portfolio redirect could fail if state transitions were interrupted. Reversed state update order and added explicit "Order Confirmed" instructions to the success screen for better UX clarity.
 - **Robust Position Highlighting**: Implemented a polling mechanism in `App.tsx` that waits for up to 10 seconds for new positions to be recognized by the Alpaca API before triggering navigation highlights.
 - **Stable UI Keys**: Replaced unstable random IDs with deterministic keys for multi-leg strategies, ensuring consistent row rendering and accurate visual feedback.
