@@ -22,11 +22,16 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
 * **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**:
-    * **Equity Performance Chart**: Visualizes historical valuation data via SVG.
+    * **Equity Performance Chart**: Visualizes historical valuation data via SVG. Supports interactive hover inspection with synchronized "Blue Dot" tracking and detailed P/L tooltips.
     * **Live Balances**: Real-time tracking of Buying Power, Cash, and Daily P/L.
+    * **Portfolio Risk Management**:
+        * **Expiry & DTE Engine**: Automated parsing of OCC symbols for real-world expiration tracking.
+        * **Visual Urgency Alerts**: Dynamic pulsing alerts (⚠️ Warning, 🚨 Critical) based on P/L and DTE thresholds.
+        * **"Trade Guardian" Advisor**: Interactive popovers providing context-aware rolling and hedging recommendations.
     * **Order Management**: Submits real market orders (equity proxies for options), polls `OPEN` and `PENDING` states, and maintains a **Recent Orders** history for audit trails.
     * **Real-time Sync**: Natively syncs all actions (orders, liquidations) with the Alpaca web portal.
     * **Real Options Integration**: Natively executes and groups multi-leg Option Orders (`mleg`) via Alpaca Options Beta, visualizing active trade Payoff charts directly in the portfolio.
+    * **Robust Liquidation**: Features a premium red elliptical "Close" button for all positions. Backend uses UUID regex to safely differentiate between orders (cancel) and positions (liquidate).
     * **Covered Call Buy-Write Fallback**: Automatically detects missing underlying equity for Covered Call strategies and injects a stock "buy" leg into the multi-leg order, effectively executing a Buy-Write to satisfy Alpaca tier requirements.
     * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
 * **Interactive Symbol Analysis Dashboard**:
@@ -53,6 +58,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **SVG Coordinate Mapping**: Mouse interactions in scaled SVGs must be mapped to the `viewBox` coordinate space using `(clientX - rect.left) * (viewBoxWidth / rect.width)` to avoid alignment drift.
 * **UI Focus Resilience**: Modal-based overlays should always manage `document.body.style.overflow` to prevent confusing "double scrollbar" behavior on the far right of the screen.
 * **2026 Model Fallbacks**: Not all Gemini "preview" models are available in all regions or tiers. The most resilient fallback chain for 2026 remains `gemini-flash-latest` -> `gemini-2.5-flash` -> `gemini-2.0-flash`.
+* **Alpaca ID Ambiguity**: Alpaca Order IDs (UUIDs) can be confused with long OCC Option Symbols (21 chars) by simple length-based checks. Robust implementations should use UUID regex (`^[0-9a-f]{8}-...`) to ensure that closing a position doesn't accidentally trigger an order cancellation handler.
+* **After-Hours Liquidation**: Alpaca's `DELETE /positions` endpoint uses market orders for liquidation. For options, these orders cannot be queued when the market is closed. Systems must capture the "market is closed" 403/400 error and provide clear UI feedback to prevent user confusion.
+* **Sequential Multi-leg Liquidation**: When closing a spread, sending multiple async `DELETE` requests in parallel can lead to race conditions or incomplete refreshes. Sequential `await` loops in the frontend ensure that the platform state is fully consistent before the UI refreshes.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

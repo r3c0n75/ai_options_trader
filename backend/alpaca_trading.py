@@ -23,8 +23,10 @@ def get_account():
         return response.json()
     raise Exception(f"Failed to fetch account: {response.text}")
 
-def get_portfolio_history(period: str = "1D", timeframe: str = "1Min"):
-    url = f"{PAPER_API_URL}/account/portfolio/history?period={period}&timeframe={timeframe}"
+def get_portfolio_history(period: str = "1D", timeframe: str = None):
+    url = f"{PAPER_API_URL}/account/portfolio/history?period={period}"
+    if timeframe:
+        url += f"&timeframe={timeframe}"
     response = httpx.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()

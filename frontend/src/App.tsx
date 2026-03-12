@@ -11,15 +11,16 @@ import {
   LayoutDashboard, 
   Newspaper, 
   X,
-  Trash2, 
   TrendingUp, 
   TrendingDown, 
   PieChart, 
   Wallet, 
   Zap, 
-  Clock,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  Clock
 } from 'lucide-react';
 import { Omnisearch } from './components/Omnisearch';
 import { SymbolAnalysis } from './components/SymbolAnalysis';
@@ -67,6 +68,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
   const [searchedSymbol, setSearchedSymbol] = useState<string | null>(null);
+  const [portfolioPeriod, setPortfolioPeriod] = useState<string>('1D');
+  const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
 
   const parseOCC = (symbol: string) => {
     const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
@@ -78,20 +81,42 @@ function App() {
       strike: parseInt(match[4], 10) / 1000
     };
   };
-
   const groupOpenTrades = () => {
     const openTrades = trades.filter(t => t.status === 'OPEN');
     const groups: any[] = [];
-    const optionsByUnderlying = new Map<string, TradeResponse[]>();
-    
+    const optionsByUnderlying = new Map<string, any[]>();
+
+    const calculateDTE = (occSymbol: string) => {
+      const occ = parseOCC(occSymbol);
+      if (!occ) return null;
+      // Format: YYMMDD
+      const dateStr = `20${occ.expiration.substring(0, 2)}-${occ.expiration.substring(2, 4)}-${occ.expiration.substring(4, 6)}`;
+      const expiry = new Date(dateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffTime = expiry.getTime() - today.getTime();
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
+
+    const getRiskLevel = (dte: number | null, plpc: number) => {
+      if (dte === null) return 'none';
+      if (dte <= 3 && plpc < -5) return 'critical';
+      if (dte <= 7) return 'warning';
+      return 'none';
+    };
+
     openTrades.forEach(t => {
       const occ = parseOCC(t.symbol);
+      const dte = calculateDTE(t.symbol);
+      
       if (occ) {
         if (!optionsByUnderlying.has(occ.underlying)) optionsByUnderlying.set(occ.underlying, []);
-        optionsByUnderlying.get(occ.underlying)!.push(t);
+        optionsByUnderlying.get(occ.underlying)!.push({ ...t, dte });
       } else {
         groups.push({...t, 
           isSpread: false,
+          dte: null,
+          riskLevel: 'none',
           legDetails: [t],
           diagram_data: {
             underlying_price: t.current_price || t.entry_price,
@@ -112,6 +137,10 @@ function App() {
       const totalPl = options.reduce((sum, opt) => sum + opt.unrealized_pl, 0);
       const avgPlpc = options.reduce((sum, opt) => sum + opt.unrealized_plpc, 0) / options.length;
       
+      // Calculate min DTE for the strategy
+      const minDte = Math.min(...options.map(o => (o as any).dte ?? 999));
+      const riskLevel = getRiskLevel(minDte === 999 ? null : minDte, avgPlpc);
+
       let strategyName = `${options.length}-Leg Strategy`;
       let strategyType = "custom";
       if (options.length === 1) strategyName = `Long ${parseOCC(options[0].symbol)?.type}`;
@@ -149,6 +178,8 @@ function App() {
         status: "OPEN",
         side: "MULTI",
         quantity: "1 Spread",
+        dte: minDte === 999 ? null : minDte,
+        riskLevel: riskLevel,
         diagram_data: {
           underlying_price: approxUnderlying,
           strategy_type: strategyType,
@@ -161,13 +192,36 @@ function App() {
     return groups.sort((a,b) => b.market_value - a.market_value);
   };
 
+  const getPortfolioLabels = () => {
+    if (!history || !history.timestamp.length) return [];
+    
+    const labelCount = 5;
+    const indices = [];
+    for (let i = 0; i < labelCount; i++) {
+      indices.push(Math.floor((i / (labelCount - 1)) * (history.timestamp.length - 1)));
+    }
+    
+    return indices.map(idx => {
+      const ts = history.timestamp[idx];
+      const date = new Date(ts * 1000);
+      
+      if (portfolioPeriod === '1D') {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      } else if (portfolioPeriod === '1W' || portfolioPeriod === '1M') {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      } else {
+        return date.toLocaleDateString([], { year: '2-digit', month: 'short' });
+      }
+    });
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
       const [tradesRes, accountRes, historyRes, allTradesRes] = await Promise.all([
         fetch('http://localhost:8000/trades'),
         fetch('http://localhost:8000/account'),
-        fetch('http://localhost:8000/portfolio/history'),
+        fetch(`http://localhost:8000/portfolio/history?period=${portfolioPeriod === 'All' ? 'all' : portfolioPeriod}`),
         fetch('http://localhost:8000/trades?status=all')
       ]);
 
@@ -185,29 +239,38 @@ function App() {
     }
   };
 
+  const handlePortfolioMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!history || !history.equity.length) return;
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const xInViewBox = (e.clientX - rect.left) * (1000 / rect.width);
+    const index = Math.round((xInViewBox / 1000) * (history.equity.length - 1));
+    const safeIndex = Math.max(0, Math.min(index, history.equity.length - 1));
+    setPortfolioHoverData({ index: safeIndex, x: (safeIndex / (history.equity.length - 1)) * 1000 });
+  };
+
   useEffect(() => {
     fetchData();
+  }, [portfolioPeriod]);
+
+  useEffect(() => {
     const interval = setInterval(fetchData, 30000); // Refresh every 30s
     return () => clearInterval(interval);
-  }, []);
+  }, [portfolioPeriod]);
 
   const handleClosePosition = async (id: string) => {
     try {
-      await fetch(`http://localhost:8000/trades/${id}/close`, { method: 'POST' });
-      fetchData();
-    } catch (error) {
+      const response = await fetch(`http://localhost:8000/trades/${id}/close`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) return { success: false, message: data.detail || 'Closure failed' };
+      return { success: true };
+    } catch (error: any) {
       console.error('Error closing position:', error);
+      return { success: false, message: error.message || 'Network error' };
     }
   };
 
-  const handleDeletePosition = async (id: string) => {
-    try {
-      await fetch(`http://localhost:8000/trades/${id}`, { method: 'DELETE' });
-      fetchData();
-    } catch (error) {
-      console.error('Error deleting position:', error);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-black text-gray-200 font-sans selection:bg-blue-500/30 overflow-x-hidden">
@@ -328,35 +391,112 @@ function App() {
                 </div>
                 <div className="flex gap-2">
                   {['1D', '1W', '1M', 'All'].map(p => (
-                    <button key={p} className={`px-3 py-1 rounded-lg text-xs font-bold ${p === '1D' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`}>{p}</button>
+                    <button 
+                      key={p} 
+                      onClick={() => setPortfolioPeriod(p)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${portfolioPeriod === p ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+                    >
+                      {p}
+                    </button>
                   ))}
                 </div>
               </div>
               
               {/* Portfolio Chart */}
-              <div className="h-64 p-6 relative bg-gradient-to-b from-transparent to-blue-500/5">
-                {history && history.equity.length > 0 ? (
-                  <svg className="w-full h-full" viewBox="0 0 1000 100" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    <path 
-                      d={`M ${history.equity.map((e, i) => `${(i / (history.equity.length - 1)) * 1000},${100 - ((e - Math.min(...history.equity)) / (Math.max(...history.equity) - Math.min(...history.equity) || 1)) * 80 - 10}`).join(' L ')}`}
-                      fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" 
-                    />
-                    <path 
-                      d={`M 0,100 L ${history.equity.map((e, i) => `${(i / (history.equity.length - 1)) * 1000},${100 - ((e - Math.min(...history.equity)) / (Math.max(...history.equity) - Math.min(...history.equity) || 1)) * 80 - 10}`).join(' L ')} L 1000,100 Z`}
-                      fill="url(#chartGradient)"
-                    />
-                  </svg>
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center text-gray-700 italic border border-dashed border-gray-800 rounded-xl">
-                    Gathering historical benchmarks...
-                  </div>
-                )}
+              <div className="p-6 bg-gradient-to-b from-transparent to-blue-500/5">
+                <div className="h-64 relative">
+                  {history && history.equity.length > 0 ? (
+                    <div className="h-full w-full flex flex-col">
+                      <div className="flex-1 relative">
+                        <svg 
+                          className="w-full h-full cursor-crosshair" 
+                          viewBox="0 0 1000 100" 
+                          preserveAspectRatio="none"
+                          onMouseMove={handlePortfolioMouseMove}
+                          onMouseLeave={() => setPortfolioHoverData(null)}
+                        >
+                          <defs>
+                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+                              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                            </linearGradient>
+                          </defs>
+                          
+                          {/* Vertical Grid Lines */}
+                          {[0, 0.25, 0.5, 0.75, 1].map(pct => (
+                            <line 
+                              key={pct} 
+                              x1={pct * 1000} y1="0" x2={pct * 1000} y2="100" 
+                              stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" 
+                            />
+                          ))}
+
+                          <path 
+                            d={`M ${history.equity.map((e, i) => `${(i / (history.equity.length - 1)) * 1000},${100 - ((e - Math.min(...history.equity)) / (Math.max(...history.equity) - Math.min(...history.equity) || 1)) * 80 - 10}`).join(' L ')}`}
+                            fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" 
+                          />
+                          <path 
+                            d={`M 0,100 L ${history.equity.map((e, i) => `${(i / (history.equity.length - 1)) * 1000},${100 - ((e - Math.min(...history.equity)) / (Math.max(...history.equity) - Math.min(...history.equity) || 1)) * 80 - 10}`).join(' L ')} L 1000,100 Z`}
+                            fill="url(#chartGradient)"
+                          />
+
+                          {/* Hover Elements */}
+                          {portfolioHoverData && (
+                            <g>
+                              <line 
+                                x1={portfolioHoverData.x} y1="0" x2={portfolioHoverData.x} y2="100" 
+                                stroke="#3b82f6" strokeWidth="2" strokeOpacity="0.3" 
+                              />
+                              <circle 
+                                cx={portfolioHoverData.x} 
+                                cy={100 - ((history.equity[portfolioHoverData.index] - Math.min(...history.equity)) / (Math.max(...history.equity) - Math.min(...history.equity) || 1)) * 80 - 10} 
+                                r="4" fill="#3b82f6" stroke="#fff" strokeWidth="1.5" 
+                              />
+                            </g>
+                          )}
+                        </svg>
+
+                        {/* Hover Tooltip */}
+                        {portfolioHoverData && (
+                          <div 
+                            className="absolute z-20 pointer-events-none bg-gray-900 border border-gray-800 p-2 rounded-lg shadow-2xl flex flex-col gap-1 -translate-y-full mb-12"
+                            style={{ 
+                              left: `${(portfolioHoverData.x / 1000) * 100}%`,
+                              bottom: `${((100 - ((history.equity[portfolioHoverData.index] - Math.min(...history.equity)) / (Math.max(...history.equity) - Math.min(...history.equity) || 1)) * 80 - 10) / 100) * 100}%`,
+                              transform: `translate(${portfolioHoverData.x > 800 ? '-100%' : portfolioHoverData.x < 200 ? '0%' : '-50%'}, -20px)`
+                            }}
+                          >
+                            <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">
+                              {new Date(history.timestamp[portfolioHoverData.index] * 1000).toLocaleString()}
+                            </div>
+                            <div className="text-sm font-mono font-bold text-white whitespace-nowrap">
+                              $ {history.equity[portfolioHoverData.index].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className={`text-[10px] font-bold ${history.profit_loss[portfolioHoverData.index] >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {history.profit_loss[portfolioHoverData.index] >= 0 ? '+' : ''}
+                              $ {history.profit_loss[portfolioHoverData.index].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+                              ({history.profit_loss_pct[portfolioHoverData.index].toFixed(2)}%)
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* X-Axis Labels */}
+                      <div className="flex justify-between mt-4 px-1">
+                        {getPortfolioLabels().map((label, i) => (
+                          <div key={i} className="flex flex-col items-center">
+                            <div className="w-[1px] h-1 bg-gray-800 mb-1" />
+                            <span className="text-[10px] font-mono font-bold text-gray-600 tracking-tighter">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-gray-700 italic border border-dashed border-gray-800 rounded-xl">
+                      Gathering historical benchmarks...
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -403,6 +543,7 @@ function App() {
                   <thead>
                     <tr className="border-b border-gray-800 bg-black/20 text-gray-500 text-xs font-bold uppercase tracking-widest">
                       <th className="py-4 px-6 font-semibold">Asset</th>
+                      <th className="py-4 px-6 font-semibold">Exp / DTE</th>
                       <th className="py-4 px-6 font-semibold">Price</th>
                       <th className="py-4 px-6 font-semibold">Qty</th>
                       <th className="py-4 px-6 font-semibold">Market Value</th>
@@ -426,8 +567,42 @@ function App() {
                             className={`hover:bg-gray-800/30 transition-colors group ${t.diagram_data ? 'cursor-pointer' : ''}`}
                           >
                             <td className="py-5 px-6">
-                              <span className="font-bold text-gray-200 group-hover:text-blue-400 transition-colors">{t.symbol}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-200 group-hover:text-blue-400 transition-colors">{t.symbol}</span>
+                                {t.riskLevel === 'critical' && (
+                                  <div className="group/risk relative">
+                                    <AlertTriangle className="w-4 h-4 text-rose-500 animate-pulse cursor-help" />
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover/risk:block z-50 w-64 bg-gray-900 border border-rose-500/50 p-3 rounded-xl shadow-2xl backdrop-blur-md">
+                                       <div className="text-rose-400 text-xs font-bold mb-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> CRITICAL RISK</div>
+                                       <div className="text-gray-300 text-[10px] leading-relaxed">Underwater position expiring in {t.dte} days. High Gamma/Assignment risk. <b>Recommendation:</b> Roll out to next month or liquidate to preserve capital.</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {t.riskLevel === 'warning' && (
+                                  <div className="group/risk relative">
+                                    <AlertTriangle className="w-4 h-4 text-amber-500 cursor-help" />
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover/risk:block z-50 w-64 bg-gray-900 border border-amber-500/50 p-3 rounded-xl shadow-2xl backdrop-blur-md">
+                                       <div className="text-amber-400 text-xs font-bold mb-1 flex items-center gap-1"><Info className="w-3 h-3" /> EXPOSURE ALERT</div>
+                                       <div className="text-gray-300 text-[10px] leading-relaxed">Expiration approaching ({t.dte} days). Check if you need to roll to avoid theta acceleration.</div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                               <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">{t.strategy} {t.side !== 'MULTI' ? t.side : ''}</div>
+                            </td>
+                            <td className="py-5 px-6">
+                               {t.dte !== null ? (
+                                 <div className="flex flex-col">
+                                   <span className="text-xs font-mono text-gray-300">
+                                     {parseOCC(t.isSpread ? t.legDetails[0].symbol : t.symbol)?.expiration}
+                                   </span>
+                                   <span className={`text-[10px] font-bold ${t.dte <= 3 ? 'text-rose-400' : t.dte <= 7 ? 'text-amber-400' : 'text-gray-500'}`}>
+                                     {t.dte} Days Left
+                                   </span>
+                                 </div>
+                               ) : (
+                                 <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">—</span>
+                               )}
                             </td>
                             <td className="py-5 px-6 font-mono text-gray-400">
                               {t.isSpread ? '—' : `$ ${(t.current_price || 0).toFixed(2)}`}
@@ -446,14 +621,38 @@ function App() {
                             </td>
                             <td className="py-5 px-6 text-right">
                               <div className="flex gap-2 justify-end">
-                                {t.isSpread ? (
-                                   <button onClick={(e) => { e.stopPropagation(); t.legDetails.forEach((l:any) => handleClosePosition(l.id)); }} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Close Spread"><X className="w-4 h-4" /></button>
-                                ) : (
-                                  <>
-                                    <button onClick={(e) => { e.stopPropagation(); handleClosePosition(t.id); }} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Close Position"><X className="w-4 h-4" /></button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeletePosition(t.id); }} className="p-2 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/50" title="Liquidate"><Trash2 className="w-4 h-4" /></button>
-                                  </>
-                                )}
+                                <button 
+                                  onClick={async (e) => { 
+                                    e.stopPropagation();
+                                    const btn = e.currentTarget;
+                                    const originalText = btn.innerText;
+                                    btn.disabled = true;
+                                    btn.innerText = "Closing...";
+                                    setError(null);
+                                    
+                                    try {
+                                      if (t.isSpread) {
+                                        for (const leg of t.legDetails) {
+                                          const result = await handleClosePosition(leg.id);
+                                          if (!result.success) {
+                                            setError(result.message);
+                                            break;
+                                          }
+                                        }
+                                      } else {
+                                        const result = await handleClosePosition(t.id);
+                                        if (!result.success) setError(result.message);
+                                      }
+                                    } finally {
+                                      btn.disabled = false;
+                                      btn.innerText = originalText;
+                                      fetchData();
+                                    }
+                                  }} 
+                                  className="px-4 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-rose-400 hover:text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Close
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -467,11 +666,14 @@ function App() {
                                       {t.legDetails.map((l:any) => (
                                         <div key={l.id} className="bg-gray-800/50 p-3 rounded-xl border border-gray-700/50 text-xs font-mono">
                                           <div className="text-gray-400 mb-1">{l.symbol}</div>
-                                          <div className="flex justify-between">
+                                          <div className="flex justify-between items-center">
                                             <span className={l.quantity > 0 ? "text-emerald-400" : "text-orange-400"}>
                                               {l.quantity > 0 ? "LONG" : "SHORT"} {Math.abs(l.quantity)}
                                             </span>
-                                            <span className="text-gray-300">${Math.abs(l.current_price).toFixed(2)}</span>
+                                            <div className="flex flex-col items-end">
+                                              <span className="text-gray-300">${Math.abs(l.current_price).toFixed(2)}</span>
+                                              <span className="text-[9px] text-gray-500">Exp: {parseOCC(l.symbol)?.expiration}</span>
+                                            </div>
                                           </div>
                                         </div>
                                       ))}

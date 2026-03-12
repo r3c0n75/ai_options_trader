@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Portfolio Risk Management**:
+    - **Expiry & DTE Tracking**: Automated extraction of expiration dates from OCC symbols with real-time "Days to Expiration" (DTE) calculation for all positions and spreads.
+    - **Intelligent Risk Alerts**: Dynamic color-coded urgency alerts (⚠️ Warning, 🚨 Critical) based on time-to-expiry and profitability.
+    - **"Trade Guardian" Advisor Popover**: Interactive advisor providing tailored advice (Roll Out, Roll Up/Down, Hedge) directly within the portfolio table.
+    - **Consolidated "Close" Button**: Replaced redundant icons with a single, high-fidelity elliptical red button for streamlined position liquidation.
+    - **Portfolio Chart Inspection**: Implemented synchronized hover hair-lines and "Blue Dot" data tracking on the Equity chart, with detailed Tooltips showing timestamp-precise Profit/Loss data.
+- **Backend Liquidation Reliability**:
+    - **ID Detection Engine**: Implemented robust UUID regex matching to correctly distinguish between Alpaca Order IDs (for cancellation) and Option Symbols (for closure), resolving failures with 21-character OCC symbols.
+    - **Sequential Spread Closure**: Frontend now processes multi-leg liquidation requests sequentially to ensure reliability and prevent race conditions during spread exits.
+    - **Market-Close Awareness**: The system now detects and explains Alpaca rejections when the market is closed, gracefully resetting the UI state with descriptive notifications.
+
+### Changed
+- Refactored `App.tsx` state management for position closure to include "Closing..." loading states and automatic state restoration on failure.
+- Harmonized the Portfolio table layout by inserting an "Exp / DTE" column and removing redundant "Actions" icons.
+
+### Added
 - **AI Engine 2026 Tuning**:
     - Aligned with the latest (2026) Gemini model chain, prioritizing `gemini-flash-latest` and `gemini-2.5-flash` for high-frequency trading research.
     - Optimized retry logic for `429` (Quota Exceeded) errors with intelligent exponential backoff and localized "Daily Limit" detection to prevent hang times.

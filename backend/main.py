@@ -8,6 +8,7 @@ from database import engine, get_db
 from engine import evaluate_market_health, generate_recommendations
 from pydantic import BaseModel
 import datetime
+import re
 from alpaca_trading import (
     submit_order, get_positions, close_position, 
     close_all_positions, get_orders, cancel_order,
@@ -417,27 +418,42 @@ def get_open_trades(status: str = "open"):
 @app.delete("/trades/{symbol_or_id}", response_model=dict)
 def delete_paper_trade(symbol_or_id: str):
     try:
-        # Try to cancel it if it's an order ID (UUID format usually)
-        if len(symbol_or_id) > 15:  
+        # Robust check: Alpaca Order IDs are UUIDs. OCC symbols are 21 chars.
+        # UUID pattern: 8-4-4-4-12 hex chars
+        uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+        
+        if uuid_pattern.match(symbol_or_id):  
             cancel_order(symbol_or_id)
             return {"message": "Pending order cancelled successfully"}
         else:
             close_position(symbol_or_id)
             return {"message": "Position liquidated successfully"}
     except Exception as e:
+        # Log the full error but send the detail back to the frontend
+        print(f"Delete trade error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/trades/{symbol_or_id}/close", response_model=dict)
 def close_paper_trade(symbol_or_id: str):
     try:
-        if len(symbol_or_id) > 15:
+        uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+        
+        if uuid_pattern.match(symbol_or_id):
             cancel_order(symbol_or_id)
             return {"message": "Pending order cancelled successfully"}
         else:
+            print(f"Closing position for: {symbol_or_id}") # Debug log
             close_position(symbol_or_id)
             return {"message": "Position closed successfully"}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"Close trade error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Extract the core message if it's an Alpaca error string
+        error_msg = str(e)
+        if "market is closed" in error_msg.lower():
+            error_msg = "Market is currently closed. Alpaca does not allow liquidating options after hours."
+        raise HTTPException(status_code=400, detail=error_msg)
 
 @app.delete("/trades", response_model=dict)
 def reset_all_trades():
