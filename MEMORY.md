@@ -14,12 +14,12 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Comparative Context Engine**: Automatically detects multiple mentioned symbols in chat and fetches their real-time price/trend data for instant comparative reasoning.
     * **Advanced Retry Logic**: Backend features localized "daily quota" detection and exponential backoff for `429` errors.
     * **Multi-model Selection**: User-facing dropdown for pivoting between Flash and Pro generations.
-* **Smart Omnisearch / Universal Asset Logic**:
-    * **Scanner Sync**: The search bar's "Popular" suggestions are now dynamically linked to the user's Macro Scanner assets in `localStorage`.
-    * **Dynamic Visibility**: Handles up to 12 prioritized assets with a built-in scrollable results area.
-* **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for **1D, 1M, 3M, and 12M** intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing and explicit date-axis rendering.
-* **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions and active portfolio positions (Long Stock, Options Spreads), complete with X and Y axes for price and profit mapping.
-* **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
+* **Trade Recommendations (Top Macro Opportunities)**:
+    - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
+    - **Enhanced Sorting**: Implemented alphabetical (Symbol) and strategy-based sorting with a persistent sort order toggle.
+* **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations, now extended to include Symbol and Strategy fields.
+* **Macro Scanner (ETFScanner)**:
+    - **Asset Sorting**: Integrated Symbol and Change % sorting to allow for quick scanning of top-performing or specific assets.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
 * **Data Storage / Paper Portfolio**: Fully integrated with the **Alpaca Paper Trading API**:
     * **Equity Performance Chart**: Visualizes historical valuation data via SVG. Supports interactive hover inspection with synchronized "Blue Dot" tracking and detailed P/L tooltips.
@@ -34,9 +34,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Robust Liquidation**: Features a premium red elliptical "Close" button for all positions. Backend uses UUID regex to safely differentiate between orders (cancel) and positions (liquidate).
     * **Covered Call Buy-Write Fallback**: Automatically detects missing underlying equity for Covered Call strategies and injects a stock "buy" leg into the multi-leg order, effectively executing a Buy-Write to satisfy Alpaca tier requirements.
     * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
-* **Interactive Symbol Analysis Dashboard**:
-    * **Sentiment-Driven UI**: The "AI Pulse" card dynamically changes its color scheme and animating pulse (Bullish: Green, Bearish: Red, Neutral: Purple) based on AI verdict strings.
-    * **"AI Insight" Entry Point**: Added a high-fidelity glassmorphic button in the chart header to bridge Technical Analysis with AI Research.
+* **Symbol Analysis & AI Integration**:
+    - **Context-Aware AI Buttons**: Trade suggestions now feature individualized "AI Insight" buttons that link directly to symbol-specific analysis modals.
+    - **Visual Continuity**: The "AI Insight" badge is mirrored inside the Symbol Analysis modal for a cohesive premium experience.
+    - **Sentiment-Driven UI**: The "AI Pulse" card dynamically changes its color scheme and animating pulse (Bullish: Green, Bearish: Red, Neutral: Purple) based on AI verdict strings.
     * **Scroll Lock Utility**: Automatically prevents background page scrolling when the Modal is open to maintain focus and UI cleanliness.
 * **Strategy Payoff Diagrams**: 
     * **High-Precision Mapping**: Resolved mouse-cursor drift by mapping screen coordinates to the SVG's internal coordinate space.

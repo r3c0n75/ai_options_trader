@@ -89,7 +89,15 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-8 backdrop-blur-md bg-black/80 animate-in fade-in duration-300">
-      <div className="w-full max-w-7xl h-full bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+      <div className="w-full max-w-7xl h-full bg-gray-950 border border-gray-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 relative">
+        {/* AI Insight Badge */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[120]">
+          <div className="animate-border-rainbow px-6 py-2 rounded-full flex items-center gap-2 shadow-2xl">
+            <Zap className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+            <span className="text-xs font-black text-white tracking-[0.2em] uppercase">AI Insight</span>
+          </div>
+        </div>
+
         {/* Header */}
         <div className="px-8 py-6 border-b border-gray-800 flex items-center justify-between bg-gray-950">
           <div className="flex items-center gap-4">

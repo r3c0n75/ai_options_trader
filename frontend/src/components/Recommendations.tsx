@@ -29,12 +29,17 @@ interface Recommendation {
   };
 }
 
-export const Recommendations: React.FC = () => {
+interface RecommendationsProps {
+  onAnalyze: (symbol: string) => void;
+}
+
+export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze }) => {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [tradeStatus, setTradeStatus] = useState<{message: string, isError: boolean} | null>(null);
   const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
-  const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence'>('none');
+  const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence' | 'symbol' | 'strategy'>('none');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<Recommendation | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -56,16 +61,24 @@ export const Recommendations: React.FC = () => {
   const processedRecs = [...recs]
     .filter(r => filterSide === 'ALL' || r.side === filterSide)
     .sort((a, b) => {
-      if (sortBy === 'pop') return parsePop(b.pop) - parsePop(a.pop);
-      if (sortBy === 'risk') return parseRiskReward(b.risk_reward) - parseRiskReward(a.risk_reward);
-      if (sortBy === 'confidence') return confidenceValue(b.confidence) - confidenceValue(a.confidence);
-      return 0;
+      let comparison = 0;
+      if (sortBy === 'pop') comparison = parsePop(b.pop) - parsePop(a.pop);
+      else if (sortBy === 'risk') comparison = parseRiskReward(b.risk_reward) - parseRiskReward(a.risk_reward);
+      else if (sortBy === 'confidence') comparison = confidenceValue(b.confidence) - confidenceValue(a.confidence);
+      else if (sortBy === 'symbol') comparison = a.symbol.localeCompare(b.symbol);
+      else if (sortBy === 'strategy') comparison = a.strategy.localeCompare(b.strategy);
+      
+      return sortOrder === 'desc' ? comparison : -comparison;
     });
 
   const fetchRecs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/recommendations`);
+      // Get custom symbols from Macro Scanner's localStorage
+      const savedSymbols = localStorage.getItem('macro_scanner_symbols');
+      const symbolsParam = savedSymbols ? `?symbols=${JSON.parse(savedSymbols).join(',')}` : '';
+      
+      const res = await fetch(`http://localhost:8000/recommendations${symbolsParam}`);
       const data = await res.json();
       setRecs(data);
     } catch (err) {
@@ -136,7 +149,7 @@ export const Recommendations: React.FC = () => {
           <p className="text-gray-400 text-sm mt-1">Autonomous evaluation across SPY, QQQ, TMF, etc.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
           <div className="flex bg-gray-900/80 border border-gray-800 rounded-xl p-1">
             {(['ALL', 'BUY', 'SELL'] as const).map(side => (
               <button
@@ -153,6 +166,16 @@ export const Recommendations: React.FC = () => {
             ))}
           </div>
 
+          <div className="flex bg-gray-900/80 border border-gray-800 rounded-xl p-1">
+            <button 
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}
+            >
+              {sortOrder === 'asc' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            </button>
+          </div>
+
           <div className="relative group">
             <div className="flex items-center gap-2 bg-gray-900/80 border border-gray-800 rounded-xl px-4 py-1.5 text-xs font-bold text-gray-400 group-hover:border-gray-700 transition-all cursor-pointer">
               <Filter className="w-3.5 h-3.5" />
@@ -162,6 +185,8 @@ export const Recommendations: React.FC = () => {
             
             <div className="absolute right-0 top-full mt-2 w-48 bg-gray-950 border border-gray-800 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
               <button onClick={() => setSortBy('none')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Default</button>
+              <button onClick={() => setSortBy('symbol')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Symbol</button>
+              <button onClick={() => setSortBy('strategy')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Strategy</button>
               <button onClick={() => setSortBy('pop')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Win Prob (POP)</button>
               <button onClick={() => setSortBy('risk')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Risk/Reward Ratio</button>
               <button onClick={() => setSortBy('confidence')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">AI Confidence</button>
@@ -257,14 +282,25 @@ export const Recommendations: React.FC = () => {
                    </div>
                  </div>
 
-                 <div className="flex items-center justify-end md:justify-center md:pl-6 md:border-l border-gray-800 gap-4">
-                   <button 
-                     onClick={(e) => { e.stopPropagation(); openOrderModal(rec); }}
-                     className="bg-white/5 hover:bg-blue-600 border border-white/10 hover:border-blue-500 text-white rounded-xl px-6 py-3 font-semibold transition-all duration-300 flex items-center gap-2 w-full md:w-auto justify-center group/btn"
-                   >
-                     Order
-                     <ArrowRight className="w-4 h-4 opacity-50 group-hover/btn:opacity-100 group-hover/btn:translate-x-1 transition-all" />
-                   </button>
+                  <div className="flex items-center justify-end md:justify-center md:pl-6 md:border-l border-gray-800 gap-4">
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        onAnalyze(rec.symbol);
+                      }}
+                      className="animate-border-rainbow px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl transition-transform hover:scale-105"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                      <span className="text-[10px] font-black text-white tracking-[0.1em] uppercase">AI Insight</span>
+                    </button>
+
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openOrderModal(rec); }}
+                      className="bg-white/5 hover:bg-blue-600 border border-white/10 hover:border-blue-500 text-white rounded-xl px-6 py-3 font-semibold transition-all duration-300 flex items-center gap-2 w-full md:w-auto justify-center group/btn"
+                    >
+                      Order
+                      <ArrowRight className="w-4 h-4 opacity-50 group-hover/btn:opacity-100 group-hover/btn:translate-x-1 transition-all" />
+                    </button>
                    <div className={`p-2 rounded-lg transition-colors ${expandedIdx === idx ? 'text-blue-400 bg-blue-400/10' : 'text-gray-500 group-hover:text-gray-300'}`}>
                      <BarChart3 className="w-5 h-5" />
                    </div>

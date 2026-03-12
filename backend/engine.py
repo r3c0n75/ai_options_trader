@@ -25,9 +25,9 @@ def evaluate_market_health() -> dict:
         "description": description
     }
 
-def generate_recommendations():
+def generate_recommendations(symbols: list = None):
     """
-    Generates Top 3 Trade ideas scanning across the MACRO_BASKET.
+    Generates Top Trade ideas scanning across the provided symbols or MACRO_BASKET.
     """
     from data_fetcher import MACRO_BASKET, get_financial_news
     
@@ -38,11 +38,11 @@ def generate_recommendations():
     recs = []
     
     # In a real app, this would deeply analyze the chain for all symbols.
-    # For this simulation, we'll pick the top 3 best setups based on Market Health
+    # For this simulation, we'll pick the top setups based on Market Health
     # and assign a thesis based on recent news.
     
-    # We pick more symbols to offer a wider variety of ideas
-    symbols_to_evaluate = MACRO_BASKET[:len(MACRO_BASKET)] # Evaluate the whole basket
+    # Evaluate the provided symbols or the default basket
+    symbols_to_evaluate = symbols if symbols else MACRO_BASKET
     
     for symbol in symbols_to_evaluate:
         chain = get_options_chain(symbol)

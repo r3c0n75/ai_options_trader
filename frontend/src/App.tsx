@@ -360,7 +360,7 @@ function App() {
             )}
 
             <div className="lg:col-span-3">
-              <Recommendations />
+              <Recommendations onAnalyze={setSearchedSymbol} />
             </div>
           </main>
         )}

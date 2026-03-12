@@ -50,6 +50,21 @@ All notable changes to this project will be documented in this file.
 - **AI Pulse Truncation**: Fixed a prompt typo in `ai_engine.py` where a "2-char" constraint was erroneously requested for the thesis, restoring full 2-sentence analytical output.
 - **Analysis State Resilience**: Provided default fallback values for trend metrics to ensure the UI remains stable during initial symbol loads.
 
+## [2026-03-12]
+
+### Added
+- **Dynamic Symbol Evaluation**:
+    - Backend now accepts custom symbol lists for trade recommendations, allowing the "Top Macro Opportunities" to analyze any asset added by the user.
+    - Frontend automatically synchronizes `localStorage` assets with the recommendation engine.
+- **Comprehensive Asset Sorting**:
+    - **Recommendations**: Added sorting by **Symbol** and **Strategy** with a persistent sort order toggle (Ascending/Descending).
+    - **Macro Scanner**: Implemented sorting by **Symbol** and **Change %** for the core asset grid, including dedicated UI controls in the header.
+- **Trade-Specific AI Insights**:
+    - Replaced the static header button with individualized, animated **"AI Insight"** buttons on every trade card.
+    - Each button is context-aware and triggers a deep-dive analysis modal for that specific trade's symbol.
+- **Analysis Modal Refinement**:
+    - Added a premium, animated "AI Insight" badge to the top of the Symbol Analysis view for visual consistency.
+
 ## [2026-03-11]
 
 ### Added

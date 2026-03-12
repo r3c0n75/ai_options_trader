@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Network, TrendingUp, TrendingDown, Settings2, Plus, X, RotateCcw } from 'lucide-react';
+import { Network, TrendingUp, TrendingDown, Settings2, Plus, X, RotateCcw, Filter, ChevronDown, ArrowUpDown } from 'lucide-react';
 
 interface ETFData {
   symbol: string;
@@ -19,6 +19,8 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [newSymbol, setNewSymbol] = useState('');
+  const [sortBy, setSortBy] = useState<'default' | 'symbol' | 'change'>('default');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   // Load symbols from localStorage or use defaults
   const [symbols, setSymbols] = useState<string[]>(() => {
@@ -74,6 +76,19 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
     }
   };
 
+  const sortedData = [...data].sort((a, b) => {
+    if (sortBy === 'default') return 0;
+    
+    let comparison = 0;
+    if (sortBy === 'symbol') {
+      comparison = a.symbol.localeCompare(b.symbol);
+    } else if (sortBy === 'change') {
+      comparison = a.change_pct - b.change_pct;
+    }
+    
+    return sortOrder === 'asc' ? comparison : -comparison;
+  });
+
   if (loading && data.length === 0) return <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800 animate-pulse h-64"></div>;
 
   return (
@@ -94,6 +109,33 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Sort Controls */}
+          <div className="flex items-center gap-2">
+            <div className="flex bg-gray-800/50 border border-gray-700 rounded-lg p-0.5">
+              <button 
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="relative group/sort">
+              <div className="flex items-center gap-1.5 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-1.5 text-[10px] font-bold text-gray-400 group-hover/sort:border-indigo-500/50 transition-all cursor-pointer">
+                <Filter className="w-3 h-3" />
+                <span>Sort: <span className="text-white capitalize">{sortBy}</span></span>
+                <ChevronDown className="w-3 h-3" />
+              </div>
+              
+              <div className="absolute right-0 top-full mt-2 w-32 bg-gray-950 border border-gray-800 rounded-xl shadow-2xl opacity-0 invisible group-hover/sort:opacity-100 group-hover/sort:visible transition-all z-30 overflow-hidden">
+                <button onClick={() => setSortBy('default')} className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors uppercase tracking-wider">Default</button>
+                <button onClick={() => setSortBy('symbol')} className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors uppercase tracking-wider">Symbol</button>
+                <button onClick={() => setSortBy('change')} className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors uppercase tracking-wider">Change %</button>
+              </div>
+            </div>
+          </div>
+
           <button 
             onClick={() => setIsEditing(!isEditing)}
             className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
@@ -139,7 +181,7 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-        {data.map((etf: ETFData) => {
+        {sortedData.map((etf: ETFData) => {
           const isPositive = etf.change_pct >= 0;
           return (
             <div 

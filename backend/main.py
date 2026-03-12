@@ -213,8 +213,9 @@ def get_stock_historical_bars(symbol: str, period: str = "3M"):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/recommendations", response_model=List[TradeRecommendation])
-def get_top_recommendations():
-    recs = generate_recommendations()
+def get_top_recommendations(symbols: str = None):
+    symbol_list = symbols.split(",") if symbols else None
+    recs = generate_recommendations(symbols=symbol_list)
     return recs
 
 @app.get("/account", response_model=AccountResponse)
