@@ -30,10 +30,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def parse_dte(symbol: str) -> int | None:
+    """Calculates days to expiration from an OCC symbol."""
+    # OCC Format: [Symbol][Date:YYMMDD][Type:P/C][Price:00000000]
+    # e.g., SPY240621C00500000
+    match = re.search(r'(\d{6})[CP]\d{8}$', symbol)
+    if not match:
+        return None
+    
+    date_str = match.group(1)
+    try:
+        exp_date = datetime.datetime.strptime(date_str, "%y%m%d").date()
+        today = datetime.date.today()
+        delta = (exp_date - today).days
+        return max(0, delta)
+    except:
+        return None
+
+class AIRecommendation(BaseModel):
+    action: str  # HOLD, CLOSE, ROLL
+    rationale: str
+    confidence: int  # 0-100
+    details: List[str]
+
 class MarketHealthResponse(BaseModel):
     status: str
     vix_level: float
     description: str
+    risk_score: int = 50
+    market_mood: str = "Neutral"
+    global_thesis: str = ""
 
 class StrategyLeg(BaseModel):
     strike: float
@@ -96,6 +122,7 @@ class TradeResponse(BaseModel):
     status: str
     side: str = "buy"
     opened_at: datetime.datetime
+    ai_rec: AIRecommendation = None
 
     class Config:
         from_attributes = True
@@ -357,6 +384,7 @@ def execute_paper_trade(trade: TradeCreate):
 
 @app.get("/trades", response_model=List[TradeResponse])
 def get_open_trades(status: str = "open"):
+    from engine import evaluate_position_health, evaluate_market_health
     try:
         if status == "all":
             # Fetch both positions and recent closed orders
@@ -364,6 +392,7 @@ def get_open_trades(status: str = "open"):
             closed_orders = get_orders(status="closed", limit=20)
             open_orders = get_orders(status="open")
             
+            health = evaluate_market_health()
             trades = []
             # Build a lookup for underlying prices
             symbol_price_map = {p["symbol"]: float(p.get("current_price") or 0.0) for p in positions}
@@ -397,7 +426,14 @@ def get_open_trades(status: str = "open"):
                     underlying_price=u_price,
                     status="OPEN",
                     side=p.get("side", "long"),
-                    opened_at=datetime.datetime.utcnow()
+                    opened_at=datetime.datetime.utcnow(),
+                    ai_rec=evaluate_position_health(
+                        p["symbol"], 
+                        "Position", 
+                        float(p.get("unrealized_plpc", 0.0)) * 100,
+                        parse_dte(p["symbol"]),
+                        health
+                    )
                 ))
             
             for o in open_orders:
@@ -430,9 +466,11 @@ def get_open_trades(status: str = "open"):
         # Default behavior: Just open positions and open orders
         positions = get_positions()
         orders = get_orders(status="open")
+        
         # Build a lookup for underlying prices
         symbol_price_map = {p["symbol"]: float(p.get("current_price") or 0.0) for p in positions}
         
+        health = evaluate_market_health()
         trades = []
         for p in positions:
             sym = p["symbol"]
@@ -460,7 +498,14 @@ def get_open_trades(status: str = "open"):
                 underlying_price=u_price,
                 status="OPEN",
                 side=p.get("side", "long"),
-                opened_at=datetime.datetime.utcnow()
+                opened_at=datetime.datetime.utcnow(),
+                ai_rec=evaluate_position_health(
+                    p["symbol"], 
+                    "Position", 
+                    float(p.get("unrealized_plpc", 0.0)) * 100,
+                    parse_dte(p["symbol"]),
+                    health
+                )
             ))
         for o in orders:
             trades.append(TradeResponse(
@@ -476,7 +521,9 @@ def get_open_trades(status: str = "open"):
             ))
         return trades
     except Exception as e:
-        print(f"Error fetching positions/orders: {e}")
+        print(f"CRITICAL ERROR in get_open_trades: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 @app.delete("/trades/{symbol_or_id}", response_model=dict)

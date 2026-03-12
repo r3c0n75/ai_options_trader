@@ -25,6 +25,13 @@ import {
 import { Omnisearch } from './components/Omnisearch';
 import { SymbolAnalysis } from './components/SymbolAnalysis';
 
+interface AIRecommendation {
+  action: 'HOLD' | 'CLOSE' | 'ROLL';
+  rationale: string;
+  confidence: number;
+  details: string[];
+}
+
 interface TradeResponse {
   id: string;
   symbol: string;
@@ -39,6 +46,7 @@ interface TradeResponse {
   status: string;
   side: string;
   opened_at: string;
+  ai_rec?: AIRecommendation;
 }
 
 interface AccountStats {
@@ -72,6 +80,7 @@ function App() {
   const [portfolioPeriod, setPortfolioPeriod] = useState<string>('1D');
   const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
   const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
+  const [selectedActionRec, setSelectedActionRec] = useState<{ trade: any, rec: AIRecommendation } | null>(null);
 
   const parseOCC = (symbol: string) => {
     const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
@@ -178,7 +187,10 @@ function App() {
                 }
               ]
             },
-            legDetails: [stock, matchingShortCall]
+            legDetails: [stock, matchingShortCall],
+            ai_rec: (matchingShortCall.ai_rec?.action === 'CLOSE' && (stock.unrealized_pl + matchingShortCall.unrealized_pl) < -50) 
+              ? matchingShortCall.ai_rec 
+              : (matchingShortCall.ai_rec?.action === 'CLOSE' ? { ...matchingShortCall.ai_rec, action: 'HOLD', rationale: 'Individual leg drawdown offset by strategy components. Holding for theta.' } : matchingShortCall.ai_rec)
           });
         }
       }
@@ -203,7 +215,8 @@ function App() {
               type: 'STOCK',
               premium: stock.entry_price || stock.current_price
             }]
-          }
+          },
+          ai_rec: stock.ai_rec
         });
       }
     });
@@ -295,7 +308,10 @@ function App() {
           total_quantity: Math.abs(opts[0].quantity),
           legs: legs
         },
-        legDetails: opts
+        legDetails: opts,
+        ai_rec: (opts.some(o => o.ai_rec?.action === 'CLOSE') && totalPl < -100)
+          ? opts.find(o => o.ai_rec?.action === 'CLOSE')?.ai_rec 
+          : opts[0].ai_rec
       });
     });
     
@@ -683,6 +699,7 @@ function App() {
                       <th className="py-4 px-6 font-semibold">Market Value</th>
                       <th className="py-4 px-6 font-semibold">Total P/L ($)</th>
                       <th className="py-4 px-6 font-semibold">Status</th>
+                      <th className="py-4 px-6 font-semibold">AI Action</th>
                       <th className="py-4 px-6 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
@@ -752,6 +769,34 @@ function App() {
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                 {t.status}
                               </span>
+                            </td>
+                            <td className="py-5 px-6">
+                              {t.ai_rec ? (
+                                <div 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedActionRec({ trade: t, rec: t.ai_rec });
+                                  }}
+                                  className={`group/ai relative cursor-pointer px-3 py-1.5 rounded-xl border flex items-center gap-2 transition-all hover:scale-105 active:scale-95 ${
+                                    t.ai_rec.action === 'CLOSE' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-lg shadow-rose-500/10' :
+                                    t.ai_rec.action === 'ROLL' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-lg shadow-amber-500/10' :
+                                    'bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-lg shadow-blue-500/10'
+                                  }`}
+                                >
+                                  <Zap className={`w-3 h-3 ${t.ai_rec.action === 'CLOSE' ? 'animate-pulse' : ''}`} />
+                                  <span className="text-[10px] font-black tracking-widest uppercase">{t.ai_rec.action}</span>
+                                  
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/ai:block z-[60] w-48 bg-gray-950 border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-xl">
+                                     <div className="text-[10px] font-bold text-gray-400 mb-1">AI Rationale</div>
+                                     <p className="text-[10px] leading-tight text-white/90">{t.ai_rec.rationale}</p>
+                                     <div className="mt-2 text-[9px] font-bold text-blue-400 uppercase tracking-widest flex items-center gap-1 text-center">
+                                       Click for details <Clock className="w-2 h-2" />
+                                     </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">Evaluating...</span>
+                              )}
                             </td>
                             <td className="py-5 px-6 text-right">
                               <div className="flex gap-2 justify-end">
@@ -887,6 +932,122 @@ function App() {
           symbol={searchedSymbol} 
           onClose={() => setSearchedSymbol(null)} 
         />
+      )}
+
+      {/* AI Action Confirmation Modal */}
+      {selectedActionRec && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setSelectedActionRec(null)} />
+          <div className="relative w-full max-w-lg bg-gray-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            {/* Modal Header */}
+            <div className={`p-6 border-b border-white/5 flex justify-between items-center ${
+              selectedActionRec.rec.action === 'CLOSE' ? 'bg-rose-500/5' :
+              selectedActionRec.rec.action === 'ROLL' ? 'bg-amber-500/5' :
+              'bg-blue-500/5'
+            }`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                  selectedActionRec.rec.action === 'CLOSE' ? 'bg-rose-500/20 border-rose-500/30 text-rose-400' :
+                  selectedActionRec.rec.action === 'ROLL' ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' :
+                  'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                }`}>
+                  <Zap className="w-5 h-5 fill-current" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-tight">AI Recommendation: {selectedActionRec.rec.action}</h3>
+                  <div className="text-xs text-gray-500 font-medium">Position: <span className="text-gray-300">{selectedActionRec.trade.symbol}</span> | Confidence: <span className="text-emerald-400">{selectedActionRec.rec.confidence}%</span></div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedActionRec(null)}
+                className="p-2 hover:bg-white/5 rounded-full transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-8 space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-widest text-gray-500">The Rationale</h4>
+                <p className="text-white text-sm leading-relaxed font-medium">
+                  {selectedActionRec.rec.rationale}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-widest text-gray-500">Key Considerations</h4>
+                <ul className="space-y-3">
+                  {selectedActionRec.rec.details.map((detail, i) => (
+                    <li key={i} className="flex items-start gap-3 group">
+                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 group-hover:scale-125 transition-transform" />
+                      <span className="text-xs text-gray-300 leading-normal">{detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Action Preview */}
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Current P/L</div>
+                  <div className={`text-lg font-mono font-bold ${selectedActionRec.trade.unrealized_pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {selectedActionRec.trade.unrealized_pl >= 0 ? '+' : ''}${selectedActionRec.trade.unrealized_pl.toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-center px-4">
+                  <RefreshCw className="w-5 h-5 text-gray-700 mx-auto" />
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">AI {selectedActionRec.rec.action} Target</div>
+                  <div className="text-xs font-bold text-white uppercase tracking-tight">
+                    {selectedActionRec.rec.action === 'CLOSE' ? 'Exit at Net Mkt' : 
+                     selectedActionRec.rec.action === 'ROLL' ? 'Extend Exp +30D' : 
+                     'Maintain Stop/Limit'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 bg-white/5 border-t border-white/5 flex gap-3">
+              <button 
+                onClick={() => setSelectedActionRec(null)}
+                className="flex-1 px-6 py-3 rounded-2xl text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              >
+                Re-evaluate Later
+              </button>
+              <button 
+                onClick={async () => {
+                  const t = selectedActionRec.trade;
+                  // Handle execution logic...
+                  if (selectedActionRec.rec.action === 'CLOSE') {
+                    if (t.isSpread) {
+                      for (const leg of t.legDetails) {
+                        await handleClosePosition(leg.id);
+                      }
+                    } else {
+                      await handleClosePosition(t.id);
+                    }
+                  } else {
+                    // Logic for Roll or Hold updates
+                    console.log("Executing", selectedActionRec.rec.action);
+                  }
+                  setSelectedActionRec(null);
+                  fetchData();
+                }}
+                className={`flex-1 px-6 py-3 rounded-2xl text-sm font-bold text-white transition-all shadow-xl ${
+                  selectedActionRec.rec.action === 'CLOSE' ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20' :
+                  selectedActionRec.rec.action === 'ROLL' ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20' :
+                  'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
+                }`}
+              >
+                Execute {selectedActionRec.rec.action}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

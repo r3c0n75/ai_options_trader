@@ -13,6 +13,8 @@ An intelligent macroeconomic options trading dashboard. It provides a real-time 
 8. **Interactive Asset Charts**: Integrated **Lightweight Charts™** for high-performance historical data (1D, 1M, 3M) with an immersive **Fullscreen Analysis Mode**.
 9. **Trade Payoff Diagrams**: Interactive SVG-based P&L curves for all recommendations and open portfolio positions. Refined range scaling ensures high-detail views for stock-inclusive strategies like Covered Calls.
 10. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
+11. **Proactive "AI Action" Co-pilot**: Instant **Hold**, **Close**, or **Roll** suggestions for every position, backed by a macro-aware confirmation modal and duration-sensitive health heuristics.
+12. **Analysis Curve © NOW**: Real-time theoretical P/L curve (dashed orange) in strategy payoff diagrams, providing a realistic view of current value vs expiration potential.
 
 ## Getting Started
 

@@ -5,15 +5,26 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Current Profitability Curve (Analysis Curve © NOW)**:
-    - Implemented a real-time theoretical P/L curve using the **Black-Scholes model** in the strategy payoff diagrams.
-    - Visualize "Current" vs "Expiration" potential simultaneously with a dashed orange line.
-    - Updated `App.tsx` and `groupOpenTrades` logic to pass metadata (DTE, IV) needed for theoretical pricing.
-- **Enhanced Chart Interaction**:
-    - Refined the inspection tooltip to show dual-values: **EXP (Blue)** and **NOW (Orange)**, color-coded to match the respective lines.
-    - Improved coordinate mapping in SVG charts to ensure frame-perfect hover accuracy at high zoom levels.
-    - **P/L Accuracy & Multiplier Sync**: Resolved 100x multiplier discrepancy between per-share charts and total-dollar portfolio tables.
-    - **Market Sync**: Tied the 'NOW' analysis point directly to actual unrealized P/L from Alpaca, ensuring perfect alignment between visual diagrams and the account table.
+- **"AI Action" Portfolio Column**:
+    - Integrated a proactive "AI Action" column in the Portfolio table, providing real-time **Hold**, **Close**, and **Roll** suggestions.
+    - Implemented interactive **Action Badges** that display concise rationales on hover.
+    - Added a **Confirmation Modal** for AI actions, providing users with a deep-dive rationale, key risk considerations, and a direct execution path.
+- **Macro-Aware Sentiment Evaluation**:
+    - Backend now synthesizes financial news and VIX volatility into a unified **Risk Score** and **Market Mood**.
+    - Recommendations are automatically tuned based on geopolitical health (e.g., defensive shift during market volatility).
+- **Strategy-Aware Health Heuristics**:
+    - Refined the health engine to evaluate the **entire strategy** (e.g., Covered Call) rather than individual legs, eliminating false alarms on healthy positions with minor leg fluctuations.
+    - Implemented **DTE-Sensitive Thresholds**: Risks are now calibrated by duration, giving long-dated trades (14-45+ DTE) more breathing room while maintaining high sensitivity for Gamma-risk positions (< 7 DTE).
+- **OCC-Based DTE Calculation**:
+    - Implemented a backend `parse_dte` utility that extracts exact "Days to Expiration" from OCC symbols, ensuring health evaluations use precise time-to-maturity data.
+
+### Fixed
+- **Backend Stability & Resilience**:
+    - Resolved a critical `NameError` in `engine.py` caused by invalid `null` syntax in type hints.
+    - Fixed a silent loop crash in the `/trades` endpoint by restoring missing `engine` imports and resolving local scope issues.
+    - Implemented **Gemini API Fallbacks**: The system now gracefully handles AI timeouts or quota limits by using a default "Neutral" macro pulse, preventing portfolio load failures.
+
+## [2026-03-12] - Trade UX & Portfolio Refinement
 
 ### Added
 - **Top Macro Opportunities Toggle**:

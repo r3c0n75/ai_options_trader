@@ -88,6 +88,7 @@ def get_positions():
     response = httpx.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
+    print(f"FAILED TO FETCH POSITIONS: {response.status_code} - {response.text}")
     return []
 
 def get_orders(status: str = "open", limit: int = 50):

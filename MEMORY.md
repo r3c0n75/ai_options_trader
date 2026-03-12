@@ -61,6 +61,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Theoretical P/L Overlays**: Implemented **Black-Scholes** theoretical pricing to render a "Now" curve (Orange Dashed) alongside the "Exp" curve (Blue Solid), providing a realistic view of current strategy value vs expiration potential.
     * **Dual-Valued Tooltips**: Hover inspection now displays synchronous data for both current and expiration P/L, color-coded for instant cognitive matching.
     * **Portfolio Accuracy Sync**: Charts now include a 100x contract multiplier and anchor the 'NOW' dot to real-time market P/L, ensuring total synchronization with the account dashboard.
+* **Proactive "AI Action" Co-pilot**:
+    - **Strategy-Aware Health Dashboard**: Implemented a core intelligent layer that evaluates position health against current macro catalysts (Risk Score, Mood).
+    - **Contextual Confirmation**: Every AI action (Hold, Close, Roll) is backed by a dedicated confirmation flow explaining the rationale and risk-assessment points.
+    - **Duration-Calibrated Heuristics**: Recommendations automatically adjust their risk tolerance based on DTE extracted from OCC symbols, prioritizing Gamma-risk management for short-dated options.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
@@ -84,6 +88,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Width-Based Premium Simulation**: To ensure realistic payoff diagrams (with visible breakevens and loss zones) in simulated recommendations, spread premiums should be calculated as a percentage of the strike width (e.g., ~30-50%) rather than a small percentage of the underlying price.
 * **Underlying Price Synchronization**: Alpaca often omits the `last_underlying_price` for option positions. The system must derive this by extracting the symbol from the OCC string (e.g., SBUX from SBUX260417P00095000) and syncing with the current market price of the corresponding stock position to ensure diagrams are centered correctly.
 * **Leg Side Normalization**: Because some APIs (like Alpaca) normalize short quantities to absolute values for display, the portfolio logic must rely strictly on the `side` (short/long) property for labeling and payoff calculation, rather than relying on the sign of the quantity.
+* **Granular vs. Strategy P/L Discrepancy**: Standard health models evaluate individual legs. A "CLOSE" signal on a short call leg (-50% P/L) might be a false alarm for a Covered Call that is overall profitable. AI logic must be "Strategy Aware" and evaluate the aggregate P/L of grouped positions.
+* **Gemini Resilience & Critical Fallbacks**: Heavy-weight AI calls (Macro Health) should never block core data flow. Implement robust try-except blocks with "Neutral" fallbacks to ensure the UI stays responsive even during API timeouts or rate limits.
+* **FastAPI Scoping & Circular Imports**: When importing logic across `main.py` and `engine.py`, functional-level imports (inside the endpoint) are often required to avoid circular dependency crashes at startup.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

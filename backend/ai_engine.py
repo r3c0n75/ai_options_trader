@@ -175,3 +175,28 @@ def get_research_response(symbol: str, question: str, context: str, model_name: 
         return response.text
     except Exception as e:
         return f"Research Error: Quota Limit Reached. (Current key tier is likely FREE). Error: {str(e)[:50]}"
+
+def get_macro_sentiment(news_headlines: str, vix: float, model_name: str = None) -> dict:
+    """Synthesizes news and VIX into a market risk score and mood."""
+    model = _get_model(model_name)
+    if not model:
+        return {"risk_score": 50, "market_mood": "Neutral", "global_thesis": "AI sentiment unavailable."}
+
+    prompt = f"""Macro Sentiment Analysis:
+VIX Level: {vix}
+Headlines: {news_headlines}
+
+Task: Determine the global market 'mood' and a risk score (0-100, where 100 is extreme fear/war).
+Consider geopolitical risk, inflation, and volatility.
+Return ONLY valid JSON with keys: risk_score (int), market_mood (Risk-On, Risk-Off, Defensive), global_thesis (1 concise sentence)."""
+
+    try:
+        response = _generate_with_retry(model, prompt)
+        text = response.text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        import json
+        return json.loads(text)
+    except Exception as e:
+        print(f"DEBUG: get_macro_sentiment failed: {e}")
+        return {"risk_score": 50, "market_mood": "Neutral", "global_thesis": "Macro pulse calculation failed."}
