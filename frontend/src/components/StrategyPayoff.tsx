@@ -167,15 +167,17 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
     const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
     
-    // Reverse scale x to price
+    // Map screen-pixel x to viewBox coordinate space (640 units wide)
+    const xInViewBox = (e.clientX - rect.left) * (width / rect.width);
+    
+    // Use the viewBox coordinate for scaling
     const minPrice = points[0].price;
     const maxPrice = points[points.length - 1].price;
-    const price = minPrice + ((x - margin) / (width - 2 * margin)) * (maxPrice - minPrice);
+    const price = minPrice + ((xInViewBox - margin) / (width - 2 * margin)) * (maxPrice - minPrice);
     
     if (price >= minPrice && price <= maxPrice) {
-      setHoverData({ price, pnl: calculatePnL(price), x });
+      setHoverData({ price, pnl: calculatePnL(price), x: xInViewBox });
     }
   };
 

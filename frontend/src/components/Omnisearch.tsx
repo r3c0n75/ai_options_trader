@@ -9,12 +9,12 @@ interface OmnisearchProps {
 export const Omnisearch: React.FC<OmnisearchProps> = ({ onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
+  // Dynamic list of assets synchronized with the Macro Scanner
+  const [popularAssets, setPopularAssets] = useState<string[]>(['SPY', 'QQQ', 'IWM', 'GLD', 'TMF', 'BND', 'NVDA', 'TSLA', 'AAPL', 'MSFT']);
   const [results, setResults] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Core list of popular assets for fuzzy matching
-  const popularAssets = ['SPY', 'QQQ', 'IWM', 'USO', 'GLD', 'TMF', 'BND', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'META', 'GOOGL', 'TLT', 'VXX'];
-
+  // Load latest symbols whenever the search box is opened
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -32,13 +32,24 @@ export const Omnisearch: React.FC<OmnisearchProps> = ({ onSelect }) => {
 
   useEffect(() => {
     if (isOpen) {
+      const saved = localStorage.getItem('macro_scanner_symbols');
+      if (saved) {
+        try {
+          const scannerSymbols = JSON.parse(saved);
+          // Combine scanner symbols with some core tech stocks, removing duplicates
+          const combined = Array.from(new Set([...scannerSymbols, 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'META', 'GOOGL']));
+          setPopularAssets(combined);
+        } catch (e) {
+          console.error("Error parsing scanner symbols");
+        }
+      }
       inputRef.current?.focus();
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (query.trim() === '') {
-      setResults(popularAssets.slice(0, 5));
+      setResults(popularAssets.slice(0, 12)); // Increased limit to show more custom symbols
     } else {
       const filtered = popularAssets.filter(a => 
         a.toLowerCase().includes(query.toLowerCase())
@@ -49,7 +60,7 @@ export const Omnisearch: React.FC<OmnisearchProps> = ({ onSelect }) => {
       }
       setResults(filtered.slice(0, 8));
     }
-  }, [query]);
+  }, [query, popularAssets]);
 
   const handleSelect = (symbol: string) => {
     onSelect(symbol);
@@ -95,7 +106,7 @@ export const Omnisearch: React.FC<OmnisearchProps> = ({ onSelect }) => {
           </button>
         </div>
 
-        <div className="p-2">
+        <div className="p-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
           {results.length > 0 ? (
             <div className="grid gap-1">
               <div className="px-4 py-2 text-[10px] uppercase tracking-widest font-bold text-gray-600">

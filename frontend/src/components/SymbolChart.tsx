@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
-import { Maximize2, Minimize2, Clock, Calendar } from 'lucide-react';
+import { Maximize2, Minimize2, Clock, Calendar, Zap, Sparkles } from 'lucide-react';
 
-export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, onClose?: () => void, hideHeader?: boolean }) => {
+export const SymbolChart = ({ symbol, onClose, onAnalyze, hideHeader }: { symbol: string, onClose?: () => void, onAnalyze?: () => void, hideHeader?: boolean }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -128,6 +128,21 @@ export const SymbolChart = ({ symbol, onClose, hideHeader }: { symbol: string, o
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="flex-1 flex justify-center px-4 hidden md:flex">
+             {onAnalyze && (
+               <button 
+                onClick={onAnalyze}
+                className="group relative flex items-center gap-3 px-8 py-2.5 rounded-full text-xs font-black tracking-[0.2em] uppercase text-white transition-all overflow-hidden border border-white/10 hover:border-white/20 shadow-2xl animate-border-rainbow"
+              >
+                <div className="relative z-10 flex items-center gap-2">
+                  <Zap className="w-4 h-4 fill-yellow-400 text-yellow-400 animate-pulse" />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-emerald-200">AI Insight</span>
+                  <Sparkles className="w-4 h-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </button>
+             )}
           </div>
           
           <div className="flex items-center gap-2">

@@ -12,18 +12,18 @@ interface ResearchSidecarProps {
 }
 
 const MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Next-Gen Speed (Tier 1)' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'High-Throughput Stable' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'Next-Gen Reasoner (Tier 1)' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Most Capable Stable' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Balanced Performance' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Current 2026 Standard (Reliable)' },
+  { id: 'gemini-flash-latest', name: 'Gemini Flash Latest', desc: 'Always latest stable' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'High Efficiency' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Next-Gen Speed (Preview)' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'Deep Reasoning Stable' },
 ];
 
 export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, context }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(MODELS[0]);
+  const [selectedModel, setSelectedModel] = useState(MODELS[1]); // Default to gemini-flash-latest
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -145,11 +145,22 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
             <div className={`flex flex-col gap-1 max-w-[88%] ${m.role === 'user' ? 'items-end' : ''}`}>
               <div className={`px-4 py-3 rounded-2xl text-[13px] leading-relaxed shadow-lg backdrop-blur-sm
                 ${m.role === 'assistant' 
-                  ? 'bg-gray-900/80 text-gray-200 border border-gray-800/50 rounded-tl-none' 
+                  ? 'bg-gray-900/80 text-gray-200 border border-gray-800/50 rounded-tl-none animate-border-rainbow' 
                   : 'bg-blue-600 text-white rounded-tr-none'
                 }`}
               >
-                {m.content}
+                {m.content.split('\n').map((line, lineIdx) => (
+                  <p key={lineIdx} className={lineIdx > 0 ? "mt-2" : ""}>
+                    {line.split(/(\*\*.*?\*\*|\*.*?\*)/g).map((part, partIdx) => {
+                      if (part.startsWith('**') && part.endsWith('**')) {
+                        return <strong key={partIdx} className="font-black text-white">{part.slice(2, -2)}</strong>;
+                      } else if (part.startsWith('*') && part.endsWith('*')) {
+                        return <em key={partIdx} className="italic text-blue-200">{part.slice(1, -1)}</em>;
+                      }
+                      return part;
+                    })}
+                  </p>
+                ))}
               </div>
             </div>
           </div>

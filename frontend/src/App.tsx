@@ -291,6 +291,7 @@ function App() {
                 <SymbolChart 
                   symbol={selectedSymbol} 
                   onClose={() => setSelectedSymbol(null)} 
+                  onAnalyze={() => setSearchedSymbol(selectedSymbol)}
                 />
               </div>
             )}

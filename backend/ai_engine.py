@@ -7,7 +7,7 @@ load_dotenv()
 
 # Global cache to avoid redundant discovery calls
 _MODEL_CACHE = {}
-DEFAULT_MODEL = "gemini-3-flash-preview"
+DEFAULT_MODEL = "gemini-flash-latest" # Always use the latest stable flash
 
 def _get_model(model_name: str = None):
     """Helper to get a GenerativeModel instance with caching."""
@@ -22,10 +22,13 @@ def _get_model(model_name: str = None):
     if "3.1-pro" in model_id: model_id = "gemini-3.1-pro-preview"
     elif "3-pro" in model_id: model_id = "gemini-3-pro-preview"
     elif "3-flash" in model_id: model_id = "gemini-3-flash-preview"
+    elif "2.5-pro" in model_id: model_id = "gemini-2.5-pro"
     elif "2.5-flash" in model_id: model_id = "gemini-2.5-flash"
     elif "2.0-flash" in model_id: model_id = "gemini-2.0-flash"
     elif "flash-lite" in model_id: model_id = "gemini-2.0-flash-lite"
-    elif "flash-8b" in model_id: model_id = "gemini-1.5-flash-8b"
+    elif "1.5-pro" in model_id: model_id = "gemini-1.5-pro"
+    elif "flash-latest" in model_id: model_id = "gemini-flash-latest"
+    elif "1.5-flash" in model_id: model_id = "gemini-flash-latest" # Map legacy 1.5 to latest
     
     if not model_id.startswith("models/"):
         model_id = f"models/{model_id}"
@@ -45,7 +48,12 @@ def _get_model(model_name: str = None):
 def _generate_with_retry(model, prompt, max_retries=2):
     """Generates content with backoff and model walking."""
     # List of models to try in order of likely quota availability for this project
-    fallback_chain = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.1-pro-preview", "gemini-2.0-flash-lite"]
+    # 2026 Priority Chain - Reduced for faster web response
+    fallback_chain = [
+        "gemini-2.5-flash", 
+        "gemini-flash-latest",
+        "gemini-2.0-flash"
+    ]
     
     # Start with the requested model
     current_model_name = model.model_name.replace("models/", "")
@@ -65,9 +73,13 @@ def _generate_with_retry(model, prompt, max_retries=2):
                 except Exception as e:
                     last_error = str(e)
                     if "429" in last_error or "Quota" in last_error:
+                        if "exceeded your current quota" in last_error.lower():
+                            print(f"DEBUG: Daily Quota Exhausted for {m_name}. Trying fallback.")
+                            break # Try next model immediately if daily limit hit
+                            
                         # Exponential backoff
-                        wait = (attempt + 1) * 2
-                        print(f"DEBUG: 429 for {m_name}. Retrying in {wait}s...")
+                        wait = (attempt + 1) * 3
+                        print(f"DEBUG: Rate limit hit for {m_name}. Retrying in {wait}s... (Attempt {attempt+1}/{max_retries})")
                         time.sleep(wait)
                     else:
                         raise e # If not a quota error, stop retrying this model
@@ -111,7 +123,35 @@ Return ONLY valid JSON with keys: verdict, thesis (2 sentences explaining the tr
         }
 
 def get_research_response(symbol: str, question: str, context: str, model_name: str = None) -> str:
-    """Returns a research response for a specific question."""
+    """Returns a research response, with automatic comparison support."""
+    from data_fetcher import get_stock_bars, get_financial_news
+    import re
+
+    # 1. Detect other symbols in the question
+    tickers = re.findall(r'\b[A-Z]{2,5}\b', question)
+    comparison_data = {}
+    
+    for t in tickers:
+        if t != symbol:
+            try:
+                bars = get_stock_bars(t, period="1D")
+                price = bars[-1]["close"] if bars else 0
+                bars_3m = get_stock_bars(t, period="3M")
+                perf_3m = ((price - bars_3m[0]["close"]) / bars_3m[0]["close"] * 100) if bars_3m else 0
+                
+                comparison_data[t] = {
+                    "price": price,
+                    "trend_3m": round(perf_3m, 2),
+                    "status": "Comparison Data Fetched"
+                }
+            except:
+                continue
+
+    # 2. Enrich context
+    enriched_context = context
+    if comparison_data:
+        enriched_context += f"\n\nCOMPARISON DATA FOR OTHER SYMBOLS: {comparison_data}"
+
     model = _get_model(model_name)
     if not model:
         return "Gemini API key not configured."
@@ -119,14 +159,15 @@ def get_research_response(symbol: str, question: str, context: str, model_name: 
     prompt = (
         f"You are a professional options trading research assistant. "
         f"Provide a concise, data-driven answer based on the context.\n\n"
-        f"Topic: {symbol}\n"
-        f"Context (JSON): {context}\n"
+        f"Primary Topic: {symbol}\n"
+        f"Context (JSON): {enriched_context}\n"
         f"User Question: {question}\n\n"
         f"Instructions:\n"
         f"1. Be extremely concise. Avoid filler.\n"
-        f"2. Focus on Price, News, Greeks, or Trend data.\n"
-        f"3. Max 3-4 short paragraphs.\n"
-        f"4. Use bolding for key levels."
+        f"2. If multiple assets are mentioned, COMPARE them using the provided data.\n"
+        f"3. Focus on Price, News, Greeks, or Trend data.\n"
+        f"4. Max 3-4 short paragraphs.\n"
+        f"5. Use bolding for key levels."
     )
 
     try:

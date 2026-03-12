@@ -5,24 +5,29 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Multi-Timeframe Performance Context**:
-    - Enhanced the `analysis/{symbol}` endpoint to calculate and inject **3-month** and **12-month** percentage trends into the AI context.
-    - Updated the Gemini Research Assistant's prompt to synthesize qualitative news with quantitative trend data for high-fidelity "Pulse" verdicts.
-- **12 Month (1Y) Charting**:
-    - Added `12M` period support to both the primary and analysis chart views.
-    - Integrated with Alpaca/yfinance backends to fetch full-year daily bars as a new historical benchmark.
-- **Gemini Engine Robustness (v2.4 - Rate Limit Rescue)**:
-    - **Tier Alignment**: Fully aligned with Google AI Studio **Tier 1 (Paid)** quotas.
-    - **API Key Tier Stickiness**: Discovered that existing API keys can remain "stuck" in Free Tier logic even after billing is enabled. Resolved by regenerating a fresh key for the Tier 1 project.
-    - **Dual-Track Fallback**: Backend now implements a "Model Walking" strategy. If `gemini-3-flash` hits a burst limit (429), it automatically drifts down to `gemini-2.5-flash`, then `gemini-2.0-flash`, and finally stable `gemini-1.5-flash`.
-    - **Metric Awareness**: The research sidecar now receives quantitative **3M and 12M trend data**, enabling contextual reasoning over price performance.
-    - **Response Engineering**: Implemented strict conciseness constraints (max 3-4 paragraphs) and high-density data formatting (bolding metrics).
-    - **Transparent Error Telemetry**: UI now displays raw API error messages (e.g., "Monthly Spend Cap hit") instead of silent failures, significantly improving the diagnostic loop for the end user.
-- **AI Response Engineering**:
-    - Optimized the Research Assistant prompt to enforce extreme conciseness (max 3-4 paragraphs).
-    - Added explicit instructions to prioritize quantitative data (Price, Greeks, Trends) and use bolding for key metrics.
-- **Frontend AI Model Control**:
-    - Added a manual model selection dropdown in the **ResearchSidecar** to allow users to pivot between generations (Flash 2.0/3.0, Pro 1.5/3.1) during high-traffic periods.
+- **AI Engine 2026 Tuning**:
+    - Aligned with the latest (2026) Gemini model chain, prioritizing `gemini-flash-latest` and `gemini-2.5-flash` for high-frequency trading research.
+    - Optimized retry logic for `429` (Quota Exceeded) errors with intelligent exponential backoff and localized "Daily Limit" detection to prevent hang times.
+    - Improved backend robustness by shortening the fallback chain to the three most stable 2026-era models.
+- **Comparative AI Research**:
+    - The Deep Research chat now automatically detects multiple ticker symbols in a single query (e.g., "Compare SPY and QQQ").
+    - Injects price and 3-month performance data for all mentioned symbols into the AI's context for instant comparative analysis.
+- **High-Fidelity UI/UX Enhancements**:
+    - **Animating AI Borders**: Added a rotating rainbow conic-gradient border to AI chat bubbles to emphasize "Intelligence" responses.
+    - **AI Pulse Glow**: The "AI Pulse Verdict" card now features a dynamic animating pulse that changes color based on sentiment:
+        - **Bullish**: Emerald Green pulse.
+        - **Bearish**: Rose Red pulse.
+        - **Neutral**: Electric Purple pulse.
+    - **"AI Insight" Chart Button**: Added a dedicated glassmorphic AI button to the Symbol Chart header for quick access to the Pulse Verdict.
+    - **Omnisearch Evolution**: Synchronized the search bar's "Popular Assets" with the user's Macro Scanner settings. New custom symbols added to the scanner are now automatically prioritized in search results.
+- **Visual Polish**:
+    - Added basic Markdown support to chat responses (rendering `**bold**` and `*italic*` correctly).
+    - Implemented background scroll-locking when the Symbol Analysis modal is open to eliminate redundant scrollbars and improve focus.
+
+### Fixed
+- **API Key Precedence**: Resolved a critical environment conflict where old system-level `GOOGLE_API_KEY` variables in Windows were overriding local project `.env` settings.
+- **Chart Interaction Alignment**: Fixed a mouse-coordinate mapping bug in the `StrategyPayoff` chart where the inspection dot drifted away from the cursor on high-DPI or scaled displays.
+- **Search Result Visibility**: Increased the maximum visible "Popular Assets" in search to 12 and added a scrollable results area to prevent newly added custom symbols from being clipped.
 
 ### Fixed
 - **Chart Layout & Date Axis**: Resolved a height conflict in the Symbol Analysis view where the date axis was being truncated. Refactored the chart container to use `min-h-[500px]` with dynamic flex-scaling.

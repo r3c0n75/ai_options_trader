@@ -101,10 +101,10 @@ class TradeResponse(BaseModel):
 class ChatRequest(BaseModel):
     question: str
     context: str = ""
-    model: str = "gemini-3-flash-preview"
+    model: str = "gemini-flash-latest"
 
 @app.get("/analysis/{symbol}")
-async def analyze_symbol(symbol: str, model: str = "gemini-3-flash-preview"):
+async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
     try:
         from data_fetcher import get_stock_bars, get_financial_news
         # Get latest price info

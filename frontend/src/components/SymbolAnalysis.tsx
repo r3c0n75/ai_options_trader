@@ -38,6 +38,9 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Prevent background scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+    
     const fetchAnalysis = async () => {
       setLoading(true);
       try {
@@ -51,7 +54,38 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
       }
     };
     fetchAnalysis();
+
+    return () => {
+      // Restore scrolling when modal is closed
+      document.body.style.overflow = 'unset';
+    };
   }, [symbol]);
+
+  const getSentimentClasses = (verdict: string) => {
+    const v = verdict.toLowerCase();
+    if (v.includes('bullish') || v.includes('buy') || v.includes('positive')) {
+      return {
+        border: 'animate-border-bullish',
+        text: 'text-emerald-400',
+        bg: 'from-emerald-600/10'
+      };
+    }
+    if (v.includes('bearish') || v.includes('sell') || v.includes('negative')) {
+      return {
+        border: 'animate-border-bearish',
+        text: 'text-rose-400',
+        bg: 'from-rose-600/10'
+      };
+    }
+    // Default to Neutral/Purple
+    return {
+      border: 'animate-border-neutral',
+      text: 'text-purple-400',
+      bg: 'from-purple-600/10'
+    };
+  };
+
+  const sentiment = data ? getSentimentClasses(data.vibe.verdict) : { border: 'animate-border-neutral', text: 'text-purple-400', bg: 'from-purple-600/10' };
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-8 backdrop-blur-md bg-black/80 animate-in fade-in duration-300">
@@ -87,14 +121,14 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
           {/* Main Content Area */}
           <div className="lg:col-span-8 overflow-y-auto p-8 space-y-8 scrollbar-thin scrollbar-thumb-gray-800 min-h-0">
             {/* AI Pulse Card */}
-            <div className="bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-2xl p-6 relative overflow-hidden group">
+            <div className={`bg-gradient-to-br ${sentiment.bg} to-transparent border border-white/5 rounded-2xl p-6 relative overflow-hidden group ${sentiment.border}`}>
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Sparkles className="w-24 h-24 text-blue-400" />
+                <Sparkles className={`w-24 h-24 ${sentiment.text}`} />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-4">
                   <Zap className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                  <span className="text-xs font-black uppercase tracking-widest text-blue-400">AI Pulse Verdict</span>
+                  <span className={`text-xs font-black uppercase tracking-widest ${sentiment.text}`}>AI Pulse Verdict</span>
                 </div>
                 
                 {loading ? (

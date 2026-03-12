@@ -9,8 +9,14 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 *   **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
-* **Gemini-Powered Research Assistant**: Integrated a conversational sidecar in the analysis view. Supported by multi-model selection (Flash, Pro, Thinking) with automated fallback logic in the backend to handle quota limits.
-* **Dynamic Macro Scanner**: Added editability to the core ETF basket. Users can add/remove assets, with persistence in `localStorage` and a "Reset to Defaults" feature.
+* **Gemini-Powered Research Assistant**:
+    * **2026 Model Optimization**: Fully tuned for the latest Gemini model chain (`flash-latest`, `2.5-flash`).
+    * **Comparative Context Engine**: Automatically detects multiple mentioned symbols in chat and fetches their real-time price/trend data for instant comparative reasoning.
+    * **Advanced Retry Logic**: Backend features localized "daily quota" detection and exponential backoff for `429` errors.
+    * **Multi-model Selection**: User-facing dropdown for pivoting between Flash and Pro generations.
+* **Smart Omnisearch / Universal Asset Logic**:
+    * **Scanner Sync**: The search bar's "Popular" suggestions are now dynamically linked to the user's Macro Scanner assets in `localStorage`.
+    * **Dynamic Visibility**: Handles up to 12 prioritized assets with a built-in scrollable results area.
 * **Interactive Symbol Charts**: Integrated **Lightweight Charts™** with support for **1D, 1M, 3M, and 12M** intervals. Features a high-performance **Fullscreen Analysis Mode** with dynamic resizing and explicit date-axis rendering.
 * **Trade Payoff Diagrams**: Interactive SVG-based P&L analysis for all trade suggestions and active portfolio positions (Long Stock, Options Spreads), complete with X and Y axes for price and profit mapping.
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations.
@@ -23,14 +29,13 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Real Options Integration**: Natively executes and groups multi-leg Option Orders (`mleg`) via Alpaca Options Beta, visualizing active trade Payoff charts directly in the portfolio.
     * **Covered Call Buy-Write Fallback**: Automatically detects missing underlying equity for Covered Call strategies and injects a stock "buy" leg into the multi-leg order, effectively executing a Buy-Write to satisfy Alpaca tier requirements.
     * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
-* **Advanced Greeks Analysis**:
-    * **Visual Dashboard**: High-fidelity UI for Delta, Gamma, Theta, and Vega.
-    * **Calculated Metrics**: Real-time simulation of Greeks in `main.py` using live volatility data and underlying price action.
-    * **IV Visualization**: Circular progress gauges for IV Rank and Implied Volatility.
-* **Smart Strategy Visualization (Payoff Diagrams)**:
-    * **Adaptive Auto-Scaling**: Implemented intelligent X and Y axis framing. X-axis now centers on strikes and premium breakevens with a minimum 5% price floor. Y-axis fits the specific trade's P/L peak to fill the chart vertically without "stretching thin".
-    * **Ultra-Zoom Stability**: Optimized SVG path logic and added division-by-zero guards to maintain chart rendering at 200x magnification levels.
-    * **Control Event Isolation**: Stopped event propagation in chart UI buttons, resolving a bug where zoom actions would inadvertently close the parent modal.
+* **Interactive Symbol Analysis Dashboard**:
+    * **Sentiment-Driven UI**: The "AI Pulse" card dynamically changes its color scheme and animating pulse (Bullish: Green, Bearish: Red, Neutral: Purple) based on AI verdict strings.
+    * **"AI Insight" Entry Point**: Added a high-fidelity glassmorphic button in the chart header to bridge Technical Analysis with AI Research.
+    * **Scroll Lock Utility**: Automatically prevents background page scrolling when the Modal is open to maintain focus and UI cleanliness.
+* **Strategy Payoff Diagrams**: 
+    * **High-Precision Mapping**: Resolved mouse-cursor drift by mapping screen coordinates to the SVG's internal coordinate space.
+    * **Smart Auto-Scaling**: Frames strikes and premium breakevens dynamically.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
@@ -44,13 +49,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **ATM Strike Proximity**: High-priced assets with high liquidity (QQQ) require strike selection based on absolute price proximity rather than index-based slicing of a range. This prevents "ITM bias" in payoff diagrams where the selection window fails to reach the current price.
 * **Payoff Diagram Logic & Normalization**: Long strategies (Straddles/Strangles) previously rendered inverted due to case-sensitivity or side mismatch. Implemented a robust normalization layer that strictly categorizes `BUY`/`LONG` vs `SELL`/`SHORT`. This ensures P/L zones are mapped accurately across the entire stack regardless of minor semantic variations in string data.
 * **Low-Impact Strategy Scaling**: Strategies on low-priced assets (TMF) collecting small premiums ($0.50) initially appeared as flat lines due to a fixed +/- $10 P/L axis. Switching to a percentage-based adaptive Y-axis (Peak * 1.25) ensures clear visual feedback regardless of absolute dollar amounts.
-* **Gemini Engine Robustness (v2.4 - Rate Limit Rescue)**:
-    - **Tier Alignment**: Fully aligned with Google AI Studio **Tier 1 (Paid)** quotas.
-    - **API Key Tier Stickiness**: Discovered that existing API keys can remain "stuck" in Free Tier logic even after billing is enabled. Resolved by regenerating a fresh key for the Tier 1 project.
-    - **Dual-Track Fallback**: Backend now implements a "Model Walking" strategy in `ai_engine.py`. If a high-speed preview model (e.g., `gemini-3-flash`) hits a burst limit (429), it automatically cycles through `gemini-2.5-flash`, `gemini-2.0-flash`, and stable `gemini-1.5-flash` with exponential backoff.
-    - **Performance Injection**: The research sidecar now receives quantitative **3M and 12M trend data**, enabling contextual reasoning over price performance.
-    - **Response Engineering**: Implemented strict conciseness constraints (max 3-4 paragraphs) and high-density data formatting (bolding metrics).
-    - **Transparent Error Telemetry**: UI now displays raw API error messages (e.g., "Monthly Spend Cap hit") instead of silent failures, significantly improving the diagnostic loop for the end user.
+* **Environment Precedence (Windows)**: System-level environment variables take priority over local `.env` files. If an AI key appears "stuck" on Free Tier limits despite configuration, check Windows User/System variables for conflicting `GOOGLE_API_KEY` entries.
+* **SVG Coordinate Mapping**: Mouse interactions in scaled SVGs must be mapped to the `viewBox` coordinate space using `(clientX - rect.left) * (viewBoxWidth / rect.width)` to avoid alignment drift.
+* **UI Focus Resilience**: Modal-based overlays should always manage `document.body.style.overflow` to prevent confusing "double scrollbar" behavior on the far right of the screen.
+* **2026 Model Fallbacks**: Not all Gemini "preview" models are available in all regions or tiers. The most resilient fallback chain for 2026 remains `gemini-flash-latest` -> `gemini-2.5-flash` -> `gemini-2.0-flash`.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.
