@@ -144,6 +144,11 @@ class ChatRequest(BaseModel):
     context: str = ""
     model: str = "gemini-flash-latest"
 
+class RepriceRequest(BaseModel):
+    symbol: str
+    strategy: str
+    expiration: str
+
 @app.get("/analysis/{symbol}")
 async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
     try:
@@ -266,6 +271,19 @@ def get_top_recommendations(symbols: str = None, limit: int = None):
     symbol_list = symbols.split(",") if symbols else None
     recs = generate_recommendations(symbols=symbol_list, limit=limit)
     return recs
+
+@app.get("/options/expirations/{symbol}")
+def get_symbol_expirations(symbol: str):
+    from data_fetcher import get_all_expirations
+    return get_all_expirations(symbol)
+
+@app.post("/options/reprice", response_model=Optional[TradeRecommendation])
+def reprice_trade_strategy(req: RepriceRequest):
+    from engine import reprice_strategy
+    res = reprice_strategy(req.symbol, req.strategy, req.expiration)
+    if not res:
+        raise HTTPException(status_code=404, detail="Could not reprice strategy for this expiration.")
+    return res
 
 @app.get("/account", response_model=AccountResponse)
 def get_alpaca_account():

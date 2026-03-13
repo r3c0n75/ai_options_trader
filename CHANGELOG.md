@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-13] - Guided Expirations & Stability
+
+### Added
+- **Guided Expiration Selection**:
+    - **Interactive Horizon Toggles**: Added "Weekly", "Monthly", and "LEAPS" tabs to the `TradeConfirmationModal` for faster strategy optimization.
+    - **Real-Time Repricing**: Integrated a new API endpoint that dynamically re-calculates option legs and premiums when a user selects a different expiration date.
+    - **Liquidity Awareness**: Implemented pulsing visual warnings for LEAPS expirations to manage user expectations for order fill times.
+- **Backend Options Engine**:
+    - **Dynamic Repricing Endpoint**: Created `/options/reprice` to handle real-time strategy recalculations across different timeframes.
+    - **Expiration Scraper**: Added `/options/expirations/{symbol}` to fetch all active contract dates from Alpaca/YFinance.
+
+### Fixed
+- **Critical Modal Stability**:
+    - **Black Screen Resolution**: Resolved a crash that occurred when opening the trade modal for certain spreads. The root cause was an API URL prefix mismatch (`/api/options` vs `/options`) paired with a lack of null-safety on error responses.
+    - **Robust Data Handling**: Added defensive array-checks and optional chaining across `TradeConfirmationModal.tsx` to ensure the UI remains stable during network errors or malformed data snapshots.
+
 ## [Unreleased]
 
 - **Portfolio "Top Positions" Sorting**:

@@ -49,30 +49,23 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [orderStatus, setOrderStatus] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [availableExpirations, setAvailableExpirations] = useState<string[]>([]);
+  const [selectedHorizon, setSelectedHorizon] = useState<'Weekly' | 'Monthly' | 'LEAPS'>('Monthly');
+  const [isRepricing, setIsRepricing] = useState(false);
+  const [internalTrade, setInternalTrade] = useState<Recommendation | null>(null);
 
-  // Use a ref to prevent re-initializing when the trade prop updates due to background polling
   const initialTradeRef = React.useRef<string | null>(null);
 
-  // Sync state when trade changes or modal opens
   React.useEffect(() => {
     if (trade && isOpen) {
-      // Create a unique key for the trade strategy/symbol
       const tradeId = `${trade.symbol}-${trade.strategy}-${trade.expiration}`;
-      
-      // Only initialize state if the modal just opened or if we've switched to a different trade asset
       if (initialTradeRef.current !== tradeId) {
         setQuantity(typeof trade.quantity === 'number' && trade.quantity > 0 ? trade.quantity : 1);
         
-        // Determine the limit price
         let price = 0;
-        
-        // 1. Try explicit numeric entry_price first (preferred)
-        // 2. Fallback to target_entry string parsing
         if (typeof trade.entry_price === 'number') {
            price = trade.entry_price;
         } else if (trade.target_entry) {
-          // Strip non-numbers but keep decimals and minus sign
-          // We pre-filter out anything followed by "Strike" to avoid grabbing the wrong number
           const cleanEntry = trade.target_entry.replace(/Strike\s+\d+(\.\d+)?/gi, '');
           const match = cleanEntry.match(/[-+]?[0-9]*\.?[0-9]+/);
           if (match) {
@@ -80,11 +73,9 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
           }
         }
         
-        // Alpaca uses negative for credit, but UI shows positive for user convenience
-        // We'll keep it positive in state if it's a known credit strategy
-        const isCreditStrat = trade.strategy.toLowerCase().includes('credit') || 
-                             trade.strategy.toLowerCase().includes('condor') ||
-                             trade.strategy.toLowerCase().includes('sell'); // Include "Spread Sell"
+        const isCreditStrat = trade.strategy?.toLowerCase().includes('credit') || 
+                             trade.strategy?.toLowerCase().includes('condor') ||
+                             trade.strategy?.toLowerCase().includes('sell');
         
         if (isCreditStrat && price < 0) {
           setLimitPrice(Math.abs(price));
@@ -95,12 +86,88 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
         initialTradeRef.current = tradeId;
       }
     } else if (!isOpen) {
-      // Reset ref when modal closes so it can re-initialize on next open
       initialTradeRef.current = null;
     }
   }, [trade, isOpen]);
-  
-  if (!isOpen || !trade) return null;
+
+  React.useEffect(() => {
+    if (isOpen && trade?.symbol) {
+      const fetchExpirations = async () => {
+        try {
+          // Fix: Backend routes don't have /api prefix
+          const response = await fetch(`http://localhost:8000/options/expirations/${trade.symbol}`);
+          const dates = await response.json();
+          // Ensure we got an array to prevent .filter crash
+          setAvailableExpirations(Array.isArray(dates) ? dates : []);
+          
+          if (trade.expiration) {
+            const expDate = new Date(trade.expiration);
+            const daysTo = (expDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24);
+            if (daysTo < 14) setSelectedHorizon('Weekly');
+            else if (daysTo < 270) setSelectedHorizon('Monthly');
+            else setSelectedHorizon('LEAPS');
+          }
+          
+          setInternalTrade(trade);
+        } catch (err) {
+          console.error("Failed to fetch expirations", err);
+          setAvailableExpirations([]);
+        }
+      };
+      fetchExpirations();
+    }
+  }, [isOpen, trade?.symbol, trade?.strategy]);
+
+  const handleReprice = async (date: string) => {
+    if (!trade || isRepricing) return;
+    setIsRepricing(true);
+    try {
+      // Fix: Backend route is /options/reprice
+      const response = await fetch('http://localhost:8000/options/reprice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: trade.symbol,
+          strategy: trade.strategy,
+          expiration: date
+        })
+      });
+      if (response.ok) {
+        const newTrade = await response.json();
+        if (newTrade) {
+          setInternalTrade({
+            ...trade,
+            ...newTrade,
+            quantity: quantity
+          });
+          if (typeof newTrade.entry_price === 'number') {
+            setLimitPrice(Math.abs(newTrade.entry_price));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Repricing failed", err);
+    } finally {
+      setIsRepricing(false);
+    }
+  };
+
+  const currentTrade = internalTrade || trade;
+
+  if (!isOpen || !currentTrade) return null;
+
+  const getFilteredExpirations = () => {
+    const today = new Date();
+    if (!Array.isArray(availableExpirations)) return [];
+    
+    return availableExpirations.filter(date => {
+      const d = new Date(date);
+      const diff = (d.getTime() - today.getTime()) / (1000 * 3600 * 24);
+      if (selectedHorizon === 'Weekly') return diff < 14 && diff >= 0;
+      if (selectedHorizon === 'Monthly') return diff >= 14 && diff < 270;
+      return diff >= 270;
+    });
+  };
 
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value);
@@ -112,20 +179,20 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
   };
 
   const handleConfirm = async () => {
-    if (quantity > 0) {
+    if (quantity > 0 && currentTrade) {
       setStatus('processing');
       try {
-        // If it's a credit strategy and we have a positive number, negate it for the backend/Alpaca
-        const isCreditStrat = trade.strategy.toLowerCase().includes('credit') || 
-                             trade.strategy.toLowerCase().includes('condor') ||
-                             trade.strategy.toLowerCase().includes('sell');
+        const strategyName = currentTrade.strategy?.toLowerCase() || '';
+        const isCreditStrat = strategyName.includes('credit') || 
+                             strategyName.includes('condor') ||
+                             strategyName.includes('sell');
         
         let finalPrice = limitPrice || 0;
         if (isCreditStrat && finalPrice > 0) {
           finalPrice = -finalPrice;
         }
 
-        const result = await onConfirm(trade, quantity, finalPrice || undefined);
+        const result = await onConfirm(currentTrade, quantity, finalPrice || undefined);
         setOrderStatus(result?.status || 'ACCEPTED');
         setStatus('success');
       } catch (err: any) {
@@ -142,24 +209,22 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
     onClose();
   };
 
-  const isCreditStrat = trade.strategy.toLowerCase().includes('credit') || 
-                       trade.strategy.toLowerCase().includes('condor') ||
-                       trade.strategy.toLowerCase().includes('sell');
-  
-  // Logic: It's a credit if it's a credit strategy and price is positive, OR if price is negative
-  const isCredit = (isCreditStrat && (limitPrice || 0) >= 0) || (limitPrice || 0) < 0;
+  const currentStrategy = currentTrade.strategy?.toLowerCase() || '';
+  const isCreditStrat = currentStrategy.includes('credit') || 
+                       currentStrategy.includes('condor') ||
+                       currentStrategy.includes('sell');
+  const isCredit = (isCreditStrat && Math.abs(limitPrice || 0) >= 0) || (limitPrice || 0) < 0;
 
-  // Safety check for unrealistic limit prices
-  const spreadWidth = trade.diagram_data.legs && trade.diagram_data.legs.length === 2 
-    ? Math.abs(trade.diagram_data.legs[0].strike - trade.diagram_data.legs[1].strike)
+  // Use optional chaining for safety
+  const legs = currentTrade.diagram_data?.legs || [];
+  const spreadWidth = legs.length === 2 
+    ? Math.abs(legs[0].strike - legs[1].strike)
     : 0;
-  
   const isSuspiciousPrice = (limitPrice || 0) > 10 || (spreadWidth > 0 && (limitPrice || 0) > spreadWidth);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in">
       <div className="bg-gray-900 border border-gray-800 p-6 rounded-3xl shadow-2xl w-full max-w-lg mx-4 relative overflow-hidden">
-        {/* Animated Background Gradients */}
         <div className="absolute -top-32 -left-32 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full" />
         <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full" />
         
@@ -172,9 +237,9 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
               <h2 className="text-xl font-black text-white tracking-tight">
                 {status === 'success' 
                   ? (orderStatus === 'FILLED' ? 'Order Executed' : 'Order Working') 
-                  : status === 'error' ? 'Order Failed' : (mode === 'update' ? 'Update Order' : 'Confirm Trade')}
+                  : status === 'error' ? 'Order Failed' : (mode === 'update' ? 'Update Order' : 'Optimize Strategy')}
               </h2>
-              <p className="text-xs text-gray-400 font-black uppercase tracking-[0.2em] mt-0.5">{trade.strategy}</p>
+              <p className="text-xs text-gray-400 font-black uppercase tracking-[0.2em] mt-0.5">{currentTrade.strategy}</p>
             </div>
           </div>
           {status !== 'processing' && (
@@ -190,20 +255,65 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
               <div className="flex items-center justify-between bg-black/40 border border-gray-800/50 rounded-2xl p-5">
                 <div>
                   <div className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Asset</div>
-                  <div className="text-2xl font-black text-gray-200">{trade.symbol}</div>
+                  <div className="text-2xl font-black text-gray-200">{currentTrade.symbol}</div>
                 </div>
                 
                 <div className="text-right">
                   <div className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Expiration</div>
-                  <div className="text-sm font-bold text-blue-400">{trade.expiration}</div>
+                  <div className="text-sm font-bold text-blue-400">{currentTrade.expiration}</div>
                 </div>
                 
                 <div className="text-right">
                   <div className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Side</div>
-                  <div className={`text-sm font-bold px-3 py-1 rounded-lg ${trade.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-orange-500/20 text-orange-400 border border-orange-500/20'}`}>
-                    {trade.side}
+                  <div className={`text-sm font-bold px-3 py-1 rounded-lg ${currentTrade.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-orange-500/20 text-orange-400 border border-orange-500/20'}`}>
+                    {currentTrade.side}
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex bg-black/40 p-1 rounded-2xl border border-white/5">
+                  {(['Weekly', 'Monthly', 'LEAPS'] as const).map((horizon) => (
+                    <button
+                      key={horizon}
+                      onClick={() => setSelectedHorizon(horizon)}
+                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                        selectedHorizon === horizon 
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                        : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      {horizon}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide px-1">
+                  {getFilteredExpirations().map((date) => (
+                    <button
+                      key={date}
+                      onClick={() => handleReprice(date)}
+                      disabled={isRepricing}
+                      className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${
+                        currentTrade.expiration === date 
+                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
+                        : 'bg-gray-800/40 border-white/5 text-gray-500 hover:border-white/10'
+                      } ${isRepricing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
+                    </button>
+                  ))}
+                  {getFilteredExpirations().length === 0 && (
+                    <div className="text-[10px] text-gray-600 italic py-2 px-2">No expirations in this range</div>
+                  )}
+                </div>
+                
+                {selectedHorizon === 'LEAPS' && (
+                  <div className="flex gap-2 items-center px-1">
+                    <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                    <span className="text-[9px] font-black text-rose-500/80 uppercase tracking-tighter">LEAPS liquidity is low • Expect slow fill</span>
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-800/20 border border-white/5 rounded-3xl p-6 space-y-4">
@@ -245,16 +355,16 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                  </div>
 
                  {isSuspiciousPrice && (
-                   <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl flex gap-3 animate-in slide-in-from-top-2">
-                     <AlertCircle className="w-5 h-5 text-orange-400 shrink-0" />
-                     <div className="text-[10px] text-orange-200/80 leading-relaxed">
-                       <b className="text-orange-400 block mb-0.5 uppercase">Price Warning:</b>
-                       Your limit price (${limitPrice}) seems unusually high for this strategy. 
-                       Limit price is the <b>premium per share</b>, not the strike price. 
-                       For a ${spreadWidth || 1} wide spread, a typical fill is under $1.00.
-                     </div>
-                   </div>
-                 )}
+                    <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl flex gap-3 animate-in slide-in-from-top-2">
+                      <AlertCircle className="w-5 h-5 text-orange-400 shrink-0" />
+                      <div className="text-[10px] text-orange-200/80 leading-relaxed">
+                        <b className="text-orange-400 block mb-0.5 uppercase">Price Warning:</b>
+                        Your limit price (${limitPrice}) seems unusually high for this strategy. 
+                        Limit price is the <b>premium per share</b>, not the strike price. 
+                        For a ${spreadWidth || 1} wide spread, a typical fill is under $1.00.
+                      </div>
+                    </div>
+                  )}
 
                  <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-xl transition-all duration-500 ${
                    isCredit 
@@ -274,27 +384,27 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                    </span>
                  </div>
                  
-                 {trade.diagram_data.legs && trade.diagram_data.legs.length > 0 && (
-                   <div className="pt-1">
-                       <div className="grid grid-cols-1 gap-2">
-                         {trade.diagram_data.legs.map((leg: StrategyLeg, i: number) => (
-                           <div key={i} className="bg-black/20 p-2.5 rounded-2xl border border-white/5 flex align-middle justify-between group hover:bg-black/40 transition-colors">
-                             <div className="flex items-center gap-3">
-                               <div className={`w-1 h-8 rounded-full ${leg.side === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                               <div className="flex flex-col">
-                                 <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{leg.side} {leg.type}</span>
-                                 <span className="text-xs font-bold text-gray-300 italic">Strike {leg.strike}</span>
-                               </div>
-                             </div>
-                             <div className="text-right flex flex-col justify-center">
-                               <span className="text-[9px] font-mono text-gray-500">{trade.symbol}</span>
-                               <span className="text-[10px] font-black text-gray-400">{quantity} Contract(s)</span>
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                   </div>
-                 )}
+                 {legs.length > 0 && (
+                    <div className="pt-1">
+                        <div className="grid grid-cols-1 gap-2">
+                          {legs.map((leg: StrategyLeg, i: number) => (
+                            <div key={i} className="bg-black/20 p-2.5 rounded-2xl border border-white/5 flex align-middle justify-between group hover:bg-black/40 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-1 h-8 rounded-full ${leg.side === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{leg.side} {leg.type}</span>
+                                  <span className="text-xs font-bold text-gray-300 italic">Strike {leg.strike}</span>
+                                </div>
+                              </div>
+                              <div className="text-right flex flex-col justify-center">
+                                <span className="text-[9px] font-mono text-gray-500">{currentTrade.symbol}</span>
+                                <span className="text-[10px] font-black text-gray-400">{quantity} Contract(s)</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                    </div>
+                  )}
               </div>
               
               <div className="pt-2 flex gap-3">
@@ -306,10 +416,10 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                  </button>
                  <button 
                    onClick={handleConfirm}
-                   disabled={quantity <= 0 || limitPrice === null}
+                   disabled={quantity <= 0 || limitPrice === null || isRepricing}
                    className="flex-[2] px-4 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-500/25 transition-all duration-200 flex items-center justify-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
                  >
-                   {mode === 'update' ? 'Update Order' : 'Submit Order'}
+                   {isRepricing ? 'Repricing...' : (mode === 'update' ? 'Update Order' : 'Submit Order')}
                    <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
                  </button>
               </div>
@@ -344,7 +454,7 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
               <div className="text-center">
                 <h3 className="text-xl font-bold text-white">Order Filled</h3>
                 <p className="text-sm text-gray-400 mt-2">
-                  Successfully executed {quantity}x {trade.symbol} {trade.strategy}.
+                  Successfully executed {quantity}x {currentTrade.symbol} {currentTrade.strategy}.
                 </p>
                 <p className="text-xs text-emerald-400/70 mt-1 font-bold">Click "Done" below to view your position.</p>
               </div>
@@ -368,7 +478,7 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
               <div className="text-center">
                 <h3 className="text-xl font-bold text-white">Order Working</h3>
                 <p className="text-sm text-gray-400 mt-2">
-                  Your limit order for {quantity}x {trade.symbol} has been submitted.
+                  Your limit order for {quantity}x {currentTrade.symbol} has been submitted.
                 </p>
                 <p className="text-xs text-blue-400/70 mt-3 font-bold px-6 leading-relaxed">
                   The order is currently <b>Pending</b> in the market. It will fill once the limit price is reached.

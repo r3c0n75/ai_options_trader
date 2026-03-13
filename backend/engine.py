@@ -86,7 +86,7 @@ def generate_recommendations(symbols: list = None, limit: int = None):
         
         def get_contract(opts, target):
             c = min(opts, key=lambda x: abs(x['strike'] - target))
-            return c['strike'], c['contractSymbol']
+            return c
 
         def get_lower_contract(opts, than_strike):
             lower = [p for p in opts if p['strike'] < than_strike]
@@ -104,17 +104,31 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                 return sorted_higher[min(len(sorted_higher)-1, 1)]
             return None
 
+        def get_mid(contract):
+            if not contract: return 0.0
+            bid = contract.get('bid', 0)
+            ask = contract.get('ask', 0)
+            if ask > 0:
+                return round((bid + ask) / 2, 2)
+            return contract.get('last', 0)
+
         # High Volatility (Seller's Market)
         if health["vix_level"] > 25:
             # Idea 1: Premium collection (Sell)
-            s_put_strike, s_put_occ = get_contract(puts, current_price * 0.95)
-            l_put_contract = get_lower_contract(puts, s_put_strike)
+            s_put_contract = get_contract(puts, current_price * 0.95)
+            l_put_contract = get_lower_contract(puts, s_put_contract['strike'])
             if l_put_contract:
+                s_put_strike = s_put_contract['strike']
                 l_put_strike = l_put_contract['strike']
-                l_put_occ = l_put_contract['contractSymbol']
-                spread_width = abs(s_put_strike - l_put_strike)
-                s_put_prem = round(spread_width * 0.45, 2)
-                l_put_prem = round(spread_width * 0.15, 2)
+                
+                s_put_prem = get_mid(s_put_contract)
+                l_put_prem = get_mid(l_put_contract)
+                
+                # Skip if market data is zero (ensures no hallucinated prices)
+                if s_put_prem == 0 or l_put_prem == 0:
+                    continue
+                
+                entry_price = round(s_put_prem - l_put_prem, 2)
                 
                 conf = "Moderate" if is_high_risk else "High"
                 recs.append({
@@ -123,8 +137,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                     "side": "SELL",
                     "thesis": f"{global_thesis} Selling downside protection on {symbol} despite macro headwinds." if is_high_risk else f"High Implied Volatility crush expected. Selling downside insurance on {symbol}.",
                     "expiration": expiration,
-                    "target_entry": f"${s_put_prem - l_put_prem:.2f} Credit",
-                    "entry_price": round(s_put_prem - l_put_prem, 2),
+                    "target_entry": f"${entry_price:.2f} Credit",
+                    "entry_price": entry_price,
                     "pop": "78%", 
                     "risk_reward": "1:3.5",
                     "confidence": conf,
@@ -132,14 +146,18 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                         "underlying_price": current_price,
                         "strategy_type": "credit_spread",
                         "legs": [
-                            {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": s_put_prem, "symbol": s_put_occ},
-                            {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": l_put_prem, "symbol": l_put_occ}
+                            {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": s_put_prem, "symbol": s_put_contract['contractSymbol']},
+                            {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": l_put_prem, "symbol": l_put_contract['contractSymbol']}
                         ]
                     }
                 })
                 
             # Idea 2: Strategic Covered Call (Sell)
-            s_call_strike, s_call_occ = get_contract(calls, current_price * 1.05)
+            s_call_contract = get_contract(calls, current_price * 1.05)
+            s_call_prem = get_mid(s_call_contract)
+            if s_call_prem == 0:
+                continue
+            
             conf = "Moderate" if is_high_risk else "High"
             recs.append({
                 "symbol": symbol,
@@ -147,8 +165,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                 "side": "SELL",
                 "thesis": f"Defensive yield generation. {global_thesis} Yielding from expensive calls on {symbol}." if is_high_risk else f"Capitalizing on expensive call premiums while holding {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"$3.20 Credit",
-                "entry_price": 3.20,
+                "target_entry": f"${s_call_prem:.2f} Credit",
+                "entry_price": s_call_prem,
                 "pop": "82%",
                 "risk_reward": "1:1",
                 "confidence": conf,
@@ -157,7 +175,7 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                     "strategy_type": "covered_call",
                     "legs": [
                         {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price, "symbol": symbol},
-                        {"strike": s_call_strike, "side": "SELL", "type": "CALL", "premium": 3.20, "symbol": s_call_occ}
+                        {"strike": s_call_contract['strike'], "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_contract['contractSymbol']}
                     ]
                 }
             })
@@ -165,15 +183,19 @@ def generate_recommendations(symbols: list = None, limit: int = None):
         # Low Volatility (Buyer's Market)
         elif health["vix_level"] < 17:
             # Idea 1: Directional Leverage (Buy)
-            l_call_strike, l_call_occ = get_contract(calls, current_price)
+            l_call_contract = get_contract(calls, current_price)
+            l_call_prem = get_mid(l_call_contract)
+            if l_call_prem == 0:
+                continue
+            
             recs.append({
                 "symbol": symbol,
                 "strategy": "Long Call / ATM Leap",
                 "side": "BUY",
                 "thesis": f"Low cost of leverage. Technical breakout potential for {symbol}.",
                 "expiration": expiration,
-                "target_entry": f"$5.00 Debit",
-                "entry_price": 5.00,
+                "target_entry": f"${l_call_prem:.2f} Debit",
+                "entry_price": l_call_prem,
                 "pop": "45%", 
                 "risk_reward": "5:1",
                 "confidence": "Moderate",
@@ -181,20 +203,23 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                     "underlying_price": current_price,
                     "strategy_type": "long_call",
                     "legs": [
-                        {"strike": l_call_strike, "side": "BUY", "type": "CALL", "premium": 5.00, "symbol": l_call_occ}
+                        {"strike": l_call_contract['strike'], "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_contract['contractSymbol']}
                     ]
                 }
             })
             # Idea 2: Bullish Trend (Buy)
-            l_call_atm_strike, l_call_atm_occ = get_contract(calls, current_price)
-            s_call_otm_contract = get_higher_contract(calls, l_call_atm_strike)
+            l_call_atm_contract = get_contract(calls, current_price)
+            s_call_otm_contract = get_higher_contract(calls, l_call_atm_contract['strike'])
             if s_call_otm_contract:
-                s_call_otm_strike = s_call_otm_contract['strike']
-                s_call_otm_occ = s_call_otm_contract['contractSymbol']
-                spread_width = abs(s_call_otm_strike - l_call_atm_strike)
-                l_call_prem = round(spread_width * 0.7, 2)
-                s_call_prem = round(spread_width * 0.2, 2)
+                l_call_prem = get_mid(l_call_atm_contract)
+                s_call_prem = get_mid(s_call_otm_contract)
+                
+                # Skip if no market data
+                if l_call_prem == 0 or s_call_prem == 0:
+                    continue
 
+                entry_price = round(l_call_prem - s_call_prem, 2)
+                
                 conf = "Low" if is_high_risk else "Moderate"
                 recs.append({
                     "symbol": symbol,
@@ -202,8 +227,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                     "side": "BUY",
                     "thesis": f"Speculative play. {global_thesis} Capped risk on {symbol} recovery." if is_high_risk else f"Cheap premium. Capped risk play on continued macro strength.",
                     "expiration": expiration,
-                    "target_entry": f"${l_call_prem - s_call_prem:.2f} Debit",
-                    "entry_price": round(l_call_prem - s_call_prem, 2),
+                    "target_entry": f"${entry_price:.2f} Debit",
+                    "entry_price": entry_price,
                     "pop": "55%",
                     "risk_reward": "2.5:1",
                     "confidence": conf,
@@ -211,8 +236,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                         "underlying_price": current_price,
                         "strategy_type": "debit_spread",
                         "legs": [
-                            {"strike": l_call_atm_strike, "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_atm_occ},
-                            {"strike": s_call_otm_strike, "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_otm_occ}
+                            {"strike": l_call_atm_contract['strike'], "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_atm_contract['contractSymbol']},
+                            {"strike": s_call_otm_contract['strike'], "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_otm_contract['contractSymbol']}
                         ]
                     }
                 })
@@ -220,24 +245,28 @@ def generate_recommendations(symbols: list = None, limit: int = None):
         # Neutral / Sideways (Cash/Moderate Market)
         else:
             # Idea 1: Rangebound Capture (Sell)
-            s_p_strike, s_p_occ = get_contract(puts, current_price * 0.95)
-            l_p_contract = get_lower_contract(puts, s_p_strike)
+            s_p_contract = get_contract(puts, current_price * 0.95)
+            l_p_contract = get_lower_contract(puts, s_p_contract['strike'])
             
-            s_c_strike, s_c_occ = get_contract(calls, current_price * 1.05)
-            l_c_contract = get_higher_contract(calls, s_c_strike)
+            s_c_contract = get_contract(calls, current_price * 1.05)
+            l_c_contract = get_higher_contract(calls, s_c_contract['strike'])
             
             if l_p_contract and l_c_contract:
+                s_p_strike = s_p_contract['strike']
                 l_p_strike = l_p_contract['strike']
-                l_p_occ = l_p_contract['contractSymbol']
+                s_c_strike = s_c_contract['strike']
                 l_c_strike = l_c_contract['strike']
-                l_c_occ = l_c_contract['contractSymbol']
                 
-                # Conservatively scaled premiums (collecting ~1/4 of total wing width)
-                # Short legs at ~0.8% of price, Long legs at ~0.2%
-                s_p_prem = round(current_price * 0.008, 2)
-                l_p_prem = round(current_price * 0.002, 2)
-                s_c_prem = round(current_price * 0.008, 2)
-                l_c_prem = round(current_price * 0.002, 2)
+                s_p_prem = get_mid(s_p_contract)
+                l_p_prem = get_mid(l_p_contract)
+                s_c_prem = get_mid(s_c_contract)
+                l_c_prem = get_mid(l_c_contract)
+                
+                # Skip if any leg lacks market data (no hallucinated prices)
+                if s_p_prem == 0 or l_p_prem == 0 or s_c_prem == 0 or l_c_prem == 0:
+                    continue
+                
+                entry_price = round(s_p_prem + s_c_prem - l_p_prem - l_c_prem, 2)
 
                 conf = "High" if (is_high_risk or is_risk_off) else "Moderate"
                 recs.append({
@@ -246,8 +275,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                     "side": "SELL",
                     "thesis": f"Volatility hedge. {global_thesis} Harvesting theta on {symbol} as markets consolidate." if is_high_risk else f"Macro consolidation. Harvesting theta decay as {symbol} stays rangebound.",
                     "expiration": expiration,
-                    "target_entry": f"${s_p_prem + s_c_prem - l_p_prem - l_c_prem:.2f} Credit",
-                    "entry_price": round(s_p_prem + s_c_prem - l_p_prem - l_c_prem, 2),
+                    "target_entry": f"${entry_price:.2f} Credit",
+                    "entry_price": entry_price,
                     "pop": "65%",
                     "risk_reward": "1:2.2",
                     "confidence": conf,
@@ -255,20 +284,28 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                         "underlying_price": current_price,
                         "strategy_type": "iron_condor",
                         "legs": [
-                            {"strike": s_p_strike, "side": "SELL", "type": "PUT", "premium": s_p_prem, "symbol": s_p_occ},
-                            {"strike": l_p_strike, "side": "BUY", "type": "PUT", "premium": l_p_prem, "symbol": l_p_occ},
-                            {"strike": s_c_strike, "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_c_occ},
-                            {"strike": l_c_strike, "side": "BUY", "type": "CALL", "premium": l_c_prem, "symbol": l_c_occ}
+                            {"strike": s_p_strike, "side": "SELL", "type": "PUT", "premium": s_p_prem, "symbol": s_p_contract['contractSymbol']},
+                            {"strike": l_p_strike, "side": "BUY", "type": "PUT", "premium": l_p_prem, "symbol": l_p_contract['contractSymbol']},
+                            {"strike": s_c_strike, "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_c_contract['contractSymbol']},
+                            {"strike": l_c_strike, "side": "BUY", "type": "CALL", "premium": l_c_prem, "symbol": l_c_contract['contractSymbol']}
                         ]
                     }
                 })
                 
             # Idea 2: Earnings / Vol Play (Buy)
-            atm_call_strike, atm_call_occ = get_contract(calls, current_price)
-            atm_put_strike, atm_put_occ = get_contract(puts, current_price)
-            if atm_call_strike and atm_put_strike:
-                # Higher price assets need more realistic premiums to avoid ITM-skewed diagrams
-                straddle_prem = round(current_price * 0.015, 2)
+            atm_call_contract = get_contract(calls, current_price)
+            atm_put_contract = get_contract(puts, current_price)
+            if atm_call_contract and atm_put_contract:
+                # Use real midpoints for straddle pricing
+                c_prem = get_mid(atm_call_contract)
+                p_prem = get_mid(atm_put_contract)
+                
+                # Skip if no market data (ensures no hallucinated prices)
+                if c_prem == 0 or p_prem == 0:
+                    continue
+                
+                entry_price = round(c_prem + p_prem, 2)
+
                 # Straddles/Strangles benefit from realized volatility expansion
                 conf = "High" if (is_high_risk or is_risk_off) else "Low"
                 recs.append({
@@ -277,8 +314,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                     "side": "BUY",
                     "thesis": f"Volatility play. {global_thesis} Positioning for explosive expansion in {symbol}." if is_high_risk else f"Buying cheap volatility ahead of potential macro catalyst expansion.",
                     "expiration": expiration,
-                    "target_entry": f"${straddle_prem * 2:.2f} Debit",
-                    "entry_price": round(straddle_prem * 2, 2),
+                    "target_entry": f"${entry_price:.2f} Debit",
+                    "entry_price": entry_price,
                     "pop": "35%",
                     "risk_reward": "Uncapped",
                     "confidence": conf,
@@ -286,8 +323,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
                         "underlying_price": current_price,
                         "strategy_type": "straddle",
                         "legs": [
-                            {"strike": atm_call_strike, "side": "BUY", "type": "CALL", "premium": straddle_prem, "symbol": atm_call_occ},
-                            {"strike": atm_put_strike, "side": "BUY", "type": "PUT", "premium": straddle_prem, "symbol": atm_put_occ}
+                            {"strike": atm_call_contract['strike'], "side": "BUY", "type": "CALL", "premium": c_prem, "symbol": atm_call_contract['contractSymbol']},
+                            {"strike": atm_put_contract['strike'], "side": "BUY", "type": "PUT", "premium": p_prem, "symbol": atm_put_contract['contractSymbol']}
                         ]
                     }
                 })
@@ -378,4 +415,141 @@ def evaluate_position_health(symbol: str, strategy: str, plpc: float, dte: int |
         "confidence": confidence,
         "details": details
     }
+
+def reprice_strategy(symbol: str, strategy: str, expiration: str):
+    """
+    Given an existing symbol and strategy, finds the best legs for a NEW expiration.
+    Returns a single recommendation object.
+    """
+    from data_fetcher import get_options_chain
+    chain = get_options_chain(symbol, target_expiration=expiration)
+    if not chain:
+        return None
+        
+    current_price = chain["current_price"]
+    calls = chain.get("calls", [])
+    puts = chain.get("puts", [])
+    
+    if not calls or not puts:
+        return None
+
+    def get_contract(opts, target):
+        return min(opts, key=lambda x: abs(x['strike'] - target))
+
+    def get_lower_contract(opts, than_strike):
+        lower = [p for p in opts if p['strike'] < than_strike]
+        if lower:
+            sorted_lower = sorted(lower, key=lambda x: x['strike'], reverse=True)
+            return sorted_lower[min(len(sorted_lower)-1, 1)] 
+        return None
+        
+    def get_higher_contract(opts, than_strike):
+        higher = [c for c in opts if c['strike'] > than_strike]
+        if higher:
+            sorted_higher = sorted(higher, key=lambda x: x['strike'])
+            return sorted_higher[min(len(sorted_higher)-1, 1)]
+        return None
+
+    def get_mid(contract):
+        if not contract: return 0.0
+        bid = contract.get('bid', 0)
+        ask = contract.get('ask', 0)
+        return round((bid + ask) / 2, 2) if ask > 0 else contract.get('last', 0)
+
+    # Simplified strategy builders based on the strategy name
+    res = {
+        "symbol": symbol,
+        "strategy": strategy,
+        "expiration": expiration,
+        "diagram_data": {"underlying_price": current_price}
+    }
+
+    try:
+        if "Put Credit Spread" in strategy:
+            s_put = get_contract(puts, current_price * 0.95)
+            l_put = get_lower_contract(puts, s_put['strike'])
+            if l_put:
+                s_p_prem, l_p_prem = get_mid(s_put), get_mid(l_put)
+                if s_p_prem == 0 or l_p_prem == 0: return None
+                res["entry_price"] = round(s_p_prem - l_p_prem, 2)
+                res["diagram_data"].update({
+                    "strategy_type": "credit_spread",
+                    "legs": [
+                        {"strike": s_put['strike'], "side": "SELL", "type": "PUT", "premium": s_p_prem, "symbol": s_put['contractSymbol']},
+                        {"strike": l_put['strike'], "side": "BUY", "type": "PUT", "premium": l_p_prem, "symbol": l_put['contractSymbol']}
+                    ]
+                })
+
+        elif "Covered Call" in strategy:
+            s_call = get_contract(calls, current_price * 1.05)
+            s_c_prem = get_mid(s_call)
+            if s_c_prem == 0: return None
+            res["entry_price"] = s_c_prem
+            res["diagram_data"].update({
+                "strategy_type": "covered_call",
+                "legs": [
+                    {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price, "symbol": symbol},
+                    {"strike": s_call['strike'], "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_call['contractSymbol']}
+                ]
+            })
+
+        elif "Bull Call Debit Spread" in strategy:
+            l_call = get_contract(calls, current_price)
+            s_call = get_higher_contract(calls, l_call['strike'])
+            if s_call:
+                l_c_prem, s_c_prem = get_mid(l_call), get_mid(s_call)
+                if l_c_prem == 0 or s_c_prem == 0: return None
+                res["entry_price"] = round(l_c_prem - s_c_prem, 2)
+                res["diagram_data"].update({
+                    "strategy_type": "debit_spread",
+                    "legs": [
+                        {"strike": l_call['strike'], "side": "BUY", "type": "CALL", "premium": l_c_prem, "symbol": l_call['contractSymbol']},
+                        {"strike": s_call['strike'], "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_call['contractSymbol']}
+                    ]
+                })
+
+        elif "Iron Condor" in strategy:
+            s_p = get_contract(puts, current_price * 0.95)
+            l_p = get_lower_contract(puts, s_p['strike'])
+            s_c = get_contract(calls, current_price * 1.05)
+            l_c = get_higher_contract(calls, s_c['strike'])
+            if all([s_p, l_p, s_c, l_c]):
+                s_p_p, l_p_p, s_c_p, l_c_p = get_mid(s_p), get_mid(l_p), get_mid(s_c), get_mid(l_c)
+                if any(p == 0 for p in [s_p_p, l_p_p, s_c_p, l_c_p]): return None
+                res["entry_price"] = round(s_p_p + s_c_p - l_p_p - l_c_p, 2)
+                res["diagram_data"].update({
+                    "strategy_type": "iron_condor",
+                    "legs": [
+                        {"strike": s_p['strike'], "side": "SELL", "type": "PUT", "premium": s_p_p, "symbol": s_p['contractSymbol']},
+                        {"strike": l_p['strike'], "side": "BUY", "type": "PUT", "premium": l_p_p, "symbol": l_p['contractSymbol']},
+                        {"strike": s_c['strike'], "side": "SELL", "type": "CALL", "premium": s_c_p, "symbol": s_c['contractSymbol']},
+                        {"strike": l_c['strike'], "side": "BUY", "type": "CALL", "premium": l_c_p, "symbol": l_c['contractSymbol']}
+                    ]
+                })
+
+        elif "Long Straddle/Strangle" in strategy:
+            c = get_contract(calls, current_price)
+            p = get_contract(puts, current_price)
+            c_p, p_p = get_mid(c), get_mid(p)
+            if c_p == 0 or p_p == 0: return None
+            res["entry_price"] = round(c_p + p_p, 2)
+            res["diagram_data"].update({
+                "strategy_type": "straddle",
+                "legs": [
+                    {"strike": c['strike'], "side": "BUY", "type": "CALL", "premium": c_p, "symbol": c['contractSymbol']},
+                    {"strike": p['strike'], "side": "BUY", "type": "PUT", "premium": p_p, "symbol": p['contractSymbol']}
+                ]
+            })
+
+    except Exception:
+        return None
+
+    if "entry_price" not in res:
+        return None
+
+    # Sync target_entry string
+    side_label = "Credit" if ("SELL" in strategy or "Condor" in strategy or "Spread" in strategy and "SELL" in strategy) else "Debit"
+    res["target_entry"] = f"${res['entry_price']:.2f} {side_label}"
+    
+    return res
 

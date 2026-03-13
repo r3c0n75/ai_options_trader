@@ -40,6 +40,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Instructional Guardrails**: Modal provides contextual warnings (e.g., explaining Buy-Write logic for Covered Calls).
 * **Trade Confirmation & Execution**:
     - **Multi-Stage Lifecycle**: Added `idle`, `processing`, `success`, and `error` states to the trade modal.
+    - **Guided Expiration Selection**:
+        - **Horizon Categorization**: Implemented "Weekly", "Monthly", and "LEAPS" filter tabs for contract selection.
+        - **Dynamic Repricing**: Integrated a real-time recalculation engine that fetches and updates strategy legs/premiums when a new expiration is chosen.
+        - **Liquidity Guard**: Added visual pulse warnings for long-duration LEAPS to signal lower fill probability.
     - **Manual Redirect Robustness**: Implemented a 10s polling window in the frontend to wait for Alpaca trade synchronization. This ensures new positions are visible before highlighting.
     - **High-Frequency Monitoring**: Reduced portfolio auto-refresh interval from 30s to 5s for near real-time tracking of positions and P/L.
     - **Stable Row State**: Replaced `Math.random()` keys with deterministic ID strings to prevent UI flickering and "ghost" highlights in the Portfolio table.
@@ -47,6 +51,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Limit Order Protection**: Implemented mandatory **Limit Orders** for all multi-leg spreads. The system calculates required net credit/debit based on recommended premiums to eliminate "bad fill" risk.
     - **Active Fill Detection**: Backend polls Alpaca for 5s after submission to detect and report immediate fills, enabling distinct "Executed" vs "Working" (Pending) UI states.
     - **Option-Only Payloads**: Automatically filters out stock legs from multi-leg option orders to comply with Alpaca API requirements for OCC symbols.
+    - **Robust Null-Safety**: Added defensive guards and array-validation to prevent rendering crashes during network errors or malformed API responses.
 * **Portfolio & Positions Management**:
     - **Logical Strategy Grouping**: Stock and Short Call legs are automatically bundled into a single **Covered Call** strategy entry in the Portfolio table.
     - **Precision Strategy Detection**: Enhanced the grouping logic to specifically identify and label common 2-leg strategies including **Put Credit Spreads**, **Bull Call Debit Spreads**, **Bear Put Debit Spreads**, and **Call Credit Spreads**.
@@ -114,6 +119,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Finite P/L Filtering**: Even with math guards, rendering libraries can produce `NaN` if data points are malformed. Using `Number.isFinite()` filtering on all dataset calculations (min/max/average) ensures the UI remains stable and doesn't display `$NaN`.
 * **Theoretical Curve Anchoring**: Theoretical models often differ from reality due to IV shifts or entry timing. Shifting the curve with a `pnlOffset` calculated at the current price ensures the chart passes through the actual realized P/L, providing a much cleaner UX.
 * **Portfolio Sorting Persistence**: When implementing sorting in a real-time table, the sort logic must be applied *after* each data refresh (or wrapped in a reactive hook like `useMemo`) to prevent the dashboard from jumping or losing the user's preferred view during auto-sync events.
+* **API Route Ambiguity**: Fastly/FastAPI backends often use absolute root routes (e.g., `/options`). Prefixing frontend calls with `/api/` (a common convention) can lead to 404 errors if the proxy layer isn't explicitly configured. 
+* **Defensive Rendering for External Data**: Never assume that a successful network response contains the expected data structure (e.g., an array). Always use `Array.isArray()` and optional chaining inside `useEffect` and `map()` calls to prevent "black screen" crashes caused by malformed 404 error objects masquerading as JSON.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

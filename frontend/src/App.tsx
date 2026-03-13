@@ -836,8 +836,11 @@ function App() {
                 {trades.filter(t => t.status === 'OPEN').length > 0 && (
                   <button 
                     onClick={async () => {
-                      await fetch('http://localhost:8000/trades', { method: 'DELETE' });
-                      fetchData();
+                      const openCount = trades.filter(t => t.status === 'OPEN').length;
+                      if (window.confirm(`⚠️ LIQUIDATE ALL POSITIONS?\n\nAre you sure you want to close ALL ${openCount} open positions? This will submit immediate market orders to exit your entire portfolio.`)) {
+                        await fetch('http://localhost:8000/trades', { method: 'DELETE' });
+                        fetchData();
+                      }
                     }}
                     className="bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-rose-400 hover:text-white px-4 py-1.5 rounded-xl text-xs font-bold transition-all"
                   >
@@ -976,6 +979,8 @@ function App() {
                                 <button 
                                   onClick={async (e) => { 
                                     e.stopPropagation();
+                                    if (!window.confirm(`⚠️ CLOSE POSITION?\n\nAre you sure you want to exit your ${t.symbol} ${t.strategy} position?`)) return;
+                                    
                                     const btn = e.currentTarget;
                                     const originalText = btn.innerText;
                                     btn.disabled = true;

@@ -22,6 +22,7 @@ interface Recommendation {
   pop: string;
   risk_reward: string;
   confidence: string;
+  entry_price?: number;
   diagram_data: {
     underlying_price: number;
     strategy_type: string;
@@ -114,7 +115,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
           symbol: rec.symbol,
           strategy: rec.strategy,
           side: rec.side.toLowerCase(),
-          entry_price: limitPrice ?? (parseFloat(rec.target_entry.replace('$', '')) || 0),
+          entry_price: limitPrice ?? rec.entry_price ?? (parseFloat(rec.target_entry.replace(/[^0-9.]/g, '')) || 0),
           quantity: quantity,
           legs: rec.diagram_data.legs
         })

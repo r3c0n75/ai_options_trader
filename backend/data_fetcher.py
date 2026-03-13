@@ -67,8 +67,8 @@ def get_stock_price(symbol: str) -> float:
         print(f"Error fetching stock price from Alpaca: {e}")
         return 0.0
 
-def get_options_chain(symbol: str = "SPY"):
-    """Fetches the near-the-money options chain using Alpaca Contracts API."""
+def get_options_chain(symbol: str = "SPY", target_expiration: str = None):
+    """Fetches the near-the-money options chain for a specific expiration or the closest to 30 days."""
     current_price = get_stock_price(symbol)
     if current_price == 0.0:
         return None
@@ -96,14 +96,17 @@ def get_options_chain(symbol: str = "SPY"):
         if not expirations:
             return _yfinance_options_fallback(symbol, current_price)
             
-        target_date = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d')
-        suitable_expiries = [e for e in expirations if e >= target_date]
-        
-        if suitable_expiries:
-            selected_expiry = suitable_expiries[0]
+        if target_expiration and target_expiration in expirations:
+            selected_expiry = target_expiration
         else:
-            # Fallback to furthest available if none are >= 30 days
-            selected_expiry = expirations[-1]
+            target_date = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d')
+            suitable_expiries = [e for e in expirations if e >= target_date]
+            
+            if suitable_expiries:
+                selected_expiry = suitable_expiries[0]
+            else:
+                # Fallback to furthest available if none are >= 30 days
+                selected_expiry = expirations[-1]
             
         # Filter contracts for selected expiry
         target_contracts = [c for c in contracts if c['expiration_date'] == selected_expiry]
@@ -123,23 +126,48 @@ def get_options_chain(symbol: str = "SPY"):
         calls_ntm = sorted(calls[:15], key=lambda x: float(x['strike_price']))
         puts_ntm = sorted(puts[:15], key=lambda x: float(x['strike_price']))
         
+        # 4. Fetch snapshots for these contracts to get real-time pricing
+        contract_symbols = [c['symbol'] for c in calls_ntm] + [c['symbol'] for c in puts_ntm]
+        snapshots = {}
+        if contract_symbols:
+            try:
+                # Use data.alpaca.markets for snapshots (quotes/trades)
+                snap_url = f"{ALPACA_OPTIONS_URL}/snapshots?symbols={','.join(contract_symbols)}"
+                snap_res = httpx.get(snap_url, headers=get_headers())
+                if snap_res.status_code == 200:
+                    snapshots = snap_res.json().get('snapshots', {})
+            except Exception as e:
+                print(f"Warning: Could not fetch option snapshots: {e}")
+
         # Format for frontend / engine compatibility
         formatted_calls = []
         for c in calls_ntm:
+            snap = snapshots.get(c['symbol'], {})
+            quote = snap.get('latestQuote', {})
+            trade = snap.get('latestTrade', {})
             formatted_calls.append({
                 'contractSymbol': c['symbol'],
                 'strike': float(c['strike_price']),
                 'expiration': c['expiration_date'],
-                'type': 'call'
+                'type': 'call',
+                'bid': float(quote.get('bp', 0)),
+                'ask': float(quote.get('ap', 0)),
+                'last': float(trade.get('p', 0))
             })
             
         formatted_puts = []
         for c in puts_ntm:
+            snap = snapshots.get(c['symbol'], {})
+            quote = snap.get('latestQuote', {})
+            trade = snap.get('latestTrade', {})
             formatted_puts.append({
                 'contractSymbol': c['symbol'],
                 'strike': float(c['strike_price']),
                 'expiration': c['expiration_date'],
-                'type': 'put'
+                'type': 'put',
+                'bid': float(quote.get('bp', 0)),
+                'ask': float(quote.get('ap', 0)),
+                'last': float(trade.get('p', 0))
             })
         return {
             "expiration": selected_expiry, 
@@ -151,6 +179,28 @@ def get_options_chain(symbol: str = "SPY"):
     except Exception as e:
         print(f"Error fetching Alpaca options contracts: {traceback.format_exc()}")
         return _yfinance_options_fallback(symbol, current_price)
+
+def get_all_expirations(symbol: str) -> list:
+    """Returns a sorted list of all active expiration dates for a symbol."""
+    if not ALPACA_API_KEY:
+        try:
+            ticker = yf.Ticker(symbol)
+            return list(ticker.options)
+        except Exception:
+            return []
+
+    try:
+        today = datetime.utcnow().strftime('%Y-%m-%d')
+        url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=10000"
+        response = httpx.get(url, headers=get_headers())
+        if response.status_code == 200:
+            contracts = response.json().get('option_contracts', [])
+            expirations = sorted(list(set([c['expiration_date'] for c in contracts])))
+            return expirations
+        return []
+    except Exception as e:
+        print(f"Error fetching all expirations: {e}")
+        return []
 
 def _yfinance_options_fallback(symbol: str, current_price: float):
     # Original yfinance logic
