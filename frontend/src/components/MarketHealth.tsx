@@ -26,7 +26,7 @@ export const MarketHealth: React.FC = () => {
     };
 
     fetchMarketHealth();
-    const interval = setInterval(fetchMarketHealth, 10000); // Refresh every 10s
+    const interval = setInterval(fetchMarketHealth, 600000); // Refresh every 10mins (600,000ms)
     return () => clearInterval(interval);
   }, []);
 

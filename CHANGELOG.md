@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Market Health Refresh Interval**: Optimized the "Market Health" analysis refresh rate to **10 minutes** (from 10 seconds). This reduces background API overhead and prevents excessive re-analysis noise for long-term macro indicators.
+
 ### Added
 - **"AI Action" Portfolio Column**:
     - Integrated a proactive "AI Action" column in the Portfolio table, providing real-time **Hold**, **Close**, and **Roll** suggestions.

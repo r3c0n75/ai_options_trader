@@ -65,6 +65,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Strategy-Aware Health Dashboard**: Implemented a core intelligent layer that evaluates position health against current macro catalysts (Risk Score, Mood).
     - **Contextual Confirmation**: Every AI action (Hold, Close, Roll) is backed by a dedicated confirmation flow explaining the rationale and risk-assessment points.
     - **Duration-Calibrated Heuristics**: Recommendations automatically adjust their risk tolerance based on DTE extracted from OCC symbols, prioritizing Gamma-risk management for short-dated options.
+- **Optimized Data Refresh Rates**: 
+    - **Market Health**: Throttled to **10-minute intervals** to reflect the slow-moving nature of macro volatility and reduce LLM overhead.
+    - **Portfolio & Scanner**: Maintains high-frequency (5s) updates for real-time price action.
 
 ## Known Nuances / Lessons Learned
 * **Alpaca API Parsing**: Alpaca's v2 Stock Snapshot API optional fields like `latestTrade.p`, `prevDailyBar.c`, and `dailyBar.c` are sometimes empty or missing. Fallbacks traversing these keys avoid `NaN` or strict parsing errors.
