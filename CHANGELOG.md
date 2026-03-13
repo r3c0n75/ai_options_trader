@@ -4,21 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-- **Sentient AI News Insights**:
-    - **Asset Highlighting**: Automatically flags portfolio assets (including pending orders) in news items with sentient amber-gold highlights and target icons.
-    - **Robust Text Scan**: Implemented a regex-based fallback to identify tickers in headlines and summaries even when API-provided tags are missing.
-    - **Portfolio Filtering**: Added a persistent toggle to filter the news feed strictly for relevant holdings.
-    - **Deep Impact Analysis**: Created a high-fidelity glassmorphic modal providing impact scores, AI reasoning, and recommended actions (Hold, Hedge, Close) for any news item.
-- **Enhanced Asset Tracking**:
-    - Updated portfolio synchronization to include `PENDING` and `ACCEPTED` orders in the relevance engine, ensuring immediate feedback (e.g., for after-hours USO orders).
-- **Macro-Aware Sentiment Evaluation**:
-    - Backend now synthesizes financial news and VIX volatility into a unified **Risk Score** and **Market Mood**.
-- **Strategy-Aware Health Heuristics**:
-    - Refined the health engine to evaluate the **entire strategy** (e.g., Covered Call) rather than individual legs.
-    - Implemented **DTE-Sensitive Thresholds** for risk calibration.
-- **OCC-Based DTE Calculation**:
-    - Implementation of backend `parse_dte` utility for exact "Days to Expiration" extraction.
+- **Portfolio Payoff Chart Fixes**:
+    - **Black-Scholes Guards**: Handled non-positive stock prices (`S <= 0`) to prevent `$NaN` in distributions by returning intrinsic values.
+    - **Robust Underlying Price Logic**: Added proactive stock price fetching in the backend (`main.py`) for option positions and removed incorrect fallbacks to option premiums.
+    - **Theoretical Curve Anchoring**: Calibrated the theoretical payoff curve to anchor exactly to the actual realized portfolio P/L, ensuring visual consistency.
+    - **UI Refinements**: Renamed tooltip P/L label to "Current P/L" and widened tooltip for better legibility on multi-leg strategies.
 
 ### Changed
 - **UI Branding**: Renamed "Deep Research" to **"AI Chat"** for a more conversational and intuitive user experience.

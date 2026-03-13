@@ -254,6 +254,13 @@ function App() {
       optionsByUnderlying.get(opt.occ.underlying)!.push(opt);
     });
 
+    // Create a price map for underlyings from existing stock positions
+    const stockPriceMap = new Map<string, number>();
+    stocks.forEach(s => {
+      const price = s.underlying_price || s.current_price || s.entry_price;
+      if (price) stockPriceMap.set(s.symbol, price);
+    });
+
     optionsByUnderlying.forEach((opts, underlying) => {
       const totalMarketValue = opts.reduce((sum, opt) => sum + opt.market_value, 0);
       const totalPl = opts.reduce((sum, opt) => sum + opt.unrealized_pl, 0);
@@ -312,6 +319,10 @@ function App() {
         iv: 25 // Default IV for now
       }));
 
+      const rawUnderlyingPrice = stockPriceMap.get(underlying) || opts[0].underlying_price || 0;
+      const isSuspiciousPrice = (rawUnderlyingPrice < 5 && underlying !== 'USO' && underlying !== 'UNG') || legs.some(l => Math.abs(l.premium - rawUnderlyingPrice) < 0.01);
+      const finalUnderlyingPrice = isSuspiciousPrice ? 0 : rawUnderlyingPrice;
+
       groups.push({
         id: `mleg-${underlying}-${opts.map(o => o.id).sort().join('-')}`,
         symbol: underlying,
@@ -326,7 +337,7 @@ function App() {
         dte: minDte === 999 ? null : minDte,
         riskLevel: riskLevel,
         diagram_data: {
-          underlying_price: opts[0].underlying_price || opts[0].current_price || opts[0].entry_price,
+          underlying_price: finalUnderlyingPrice || (opts[0].symbol.length <= 6 ? opts[0].current_price : 0) || 0,
           strategy_type: strategyType,
           actual_pl: totalPl,
           total_quantity: Math.abs(opts[0].quantity),

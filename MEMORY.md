@@ -60,7 +60,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Smart Auto-Scaling**: Frames strikes and premium breakevens dynamically.
     * **Theoretical P/L Overlays**: Implemented **Black-Scholes** theoretical pricing to render a "Now" curve (Orange Dashed) alongside the "Exp" curve (Blue Solid), providing a realistic view of current strategy value vs expiration potential.
     * **Dual-Valued Tooltips**: Hover inspection now displays synchronous data for both current and expiration P/L, color-coded for instant cognitive matching.
-    * **Portfolio Accuracy Sync**: Charts now include a 100x contract multiplier and anchor the 'NOW' dot to real-time market P/L, ensuring total synchronization with the account dashboard.
+    * **Portfolio Accuracy Sync**: Charts now include a 100x contract multiplier and anchor the 'NOW' dot to real-time market P/L, ensuring total synchronization with the account dashboard. Theoretical curves are now "anchored" to actual P/L to eliminate visual gaps.
+    * **Robust Tooltips**: Hover inspection displays "EXP" and "Current P/L" with adaptive sizing to handle multi-leg strategies.
 * **Proactive "AI Action" Co-pilot**:
     - **Strategy-Aware Health Dashboard**: Implemented a core intelligent layer that evaluates position health against current macro catalysts (Risk Score, Mood).
     - **Contextual Confirmation**: Every AI action (Hold, Close, Roll) is backed by a dedicated confirmation flow explaining the rationale and risk-assessment points.
@@ -104,7 +105,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **State Flicker & Effect Dependencies**: When implementing complex modals (like AI Analysis), ensure `useEffect` dependencies are strictly scoped. Inconsistent dependencies or state resets can cause the "Analyzing..." state to flicker during background refreshes.
 * **Case-Insensitive Regex Guardrails**: When scanning text for tickers (e.g., "A", "I"), use `\b` word boundaries in regex to prevent false positives (like matching "A" in "Apple" or "C" in "Company").
 * **Empty String Data Contamination**: Malformed backend data (like a failed trade with an empty ticker `""`) can cause universal matching bugs in the frontend. Always implement defensive filtering in `useMemo` hooks and guarding in matching functions to purge empty or null strings from the portfolio awareness set.
-* **Pydantic Schema Alignment**: FastAPI endpoints with complex `response_model` definitions can fail with 422 errors if the internal data structure (e.g., `base_value`) is moved between model hierarchies without updating the endpoint schema.
+* **Black-Scholes Price Guards**: The standard BS formula involves `Math.log(S/K)`, which fails if `S <= 0`. When rendering payoff charts for low-priced assets (TMF), the price range can extend to zero. Implementing explicit guards for non-positive prices (returning intrinsic value) is critical for preventing `$NaN` UI crashes.
+* **Underlying Price Derivation**: Alpaca often omits the stock price for individual option positions. Derbying this by looking up the stock ticker from the OCC symbol and matching it against open equity positions (or a price map) is necessary to ensure portfolio charts are centered at the current spot price rather than the option premium. Proactive fetching in the backend is the safest approach.
+* **Finite P/L Filtering**: Even with math guards, rendering libraries can produce `NaN` if data points are malformed. Using `Number.isFinite()` filtering on all dataset calculations (min/max/average) ensures the UI remains stable and doesn't display `$NaN`.
+* **Theoretical Curve Anchoring**: Theoretical models often differ from reality due to IV shifts or entry timing. Shifting the curve with a `pnlOffset` calculated at the current price ensures the chart passes through the actual realized P/L, providing a much cleaner UX.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

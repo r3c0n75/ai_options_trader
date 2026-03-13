@@ -30,6 +30,11 @@ export function blackScholes(
   type: 'CALL' | 'PUT',
   r: number = 0.05
 ): number {
+  if (S <= 0) {
+    if (type === 'CALL') return 0;
+    return Math.max(0, K - S); // Intrinsic value for put at zero/negative price
+  }
+
   if (T <= 0) {
     if (type === 'CALL') return Math.max(0, S - K);
     return Math.max(0, K - S);

@@ -94,28 +94,36 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
     const result = [];
     const currentResult = [];
 
-    for (let i = 0; i <= 100; i++) {
-      const p = minPrice + i * step;
-      result.push({ price: p, pnl: calculatePnL(p) });
-      currentResult.push({ price: p, pnl: calculateTheoreticalPnL(p, legs as any) });
-    }
-    return { points: result, currentPoints: currentResult };
-  }, [underlying_price, legs, zoomLevel]);
+    // Anchor the theoretical curve to reality:
+    // If we have actual_pl, we want the theoretical curve to pass through it at the current underlying_price.
+    const currentPricePnL = calculateTheoreticalPnL(underlying_price, legs as any);
+    const pnlOffset = (actual_pl !== undefined) ? (actual_pl - currentPricePnL) : 0;
 
-  const { points, currentPoints } = allPoints;
+    for (let i = 0; i <= 100; i++) {
+      const p = Math.max(0.01, minPrice + i * step);
+      result.push({ price: p, pnl: calculatePnL(p) });
+      const theoPnL = calculateTheoreticalPnL(p, legs as any);
+      currentResult.push({ price: p, pnl: theoPnL + pnlOffset });
+    }
+    return { points: result, currentPoints: currentResult, pnlOffset };
+  }, [underlying_price, legs, zoomLevel, actual_pl]);
+
+  const { points, currentPoints, pnlOffset } = allPoints;
 
   const minPnL = useMemo(() => {
     if (!points.length) return 0;
-    const p1 = Math.min(...points.map((p: any) => p.pnl));
-    const p2 = Math.min(...currentPoints.map((p: any) => p.pnl));
-    return Math.min(p1, p2);
+    const p1 = Math.min(...points.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
+    const p2 = Math.min(...currentPoints.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
+    const min = Math.min(p1, p2);
+    return Number.isFinite(min) ? min : 0;
   }, [points, currentPoints]);
 
   const maxPnLValue = useMemo(() => {
     if (!points.length) return 0;
-    const p1 = Math.max(...points.map((p: any) => p.pnl));
-    const p2 = Math.max(...currentPoints.map((p: any) => p.pnl));
-    return Math.max(p1, p2);
+    const p1 = Math.max(...points.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
+    const p2 = Math.max(...currentPoints.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
+    const max = Math.max(p1, p2);
+    return Number.isFinite(max) ? max : 0;
   }, [points, currentPoints]);
 
   const maxPnLScale = useMemo(() => {
@@ -199,11 +207,10 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
     const price = minPrice + ((xInViewBox - margin) / (width - 2 * margin)) * (maxPrice - minPrice);
     
     if (price >= minPrice && price <= maxPrice) {
-      const isTheo = Math.abs(price - underlying_price) > 0.1;
       setHoverData({ 
         price, 
         pnl: calculatePnL(price), 
-        currentPnl: (actual_pl !== undefined && !isTheo) ? actual_pl : calculateTheoreticalPnL(price, legs as any),
+        currentPnl: calculateTheoreticalPnL(price, legs as any) + pnlOffset,
         x: xInViewBox 
       });
     }
@@ -361,9 +368,9 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
             
             {/* Tooltip background */}
             <rect 
-              x={hoverData.x > width / 2 ? hoverData.x - 80 : hoverData.x + 10} 
+              x={hoverData.x > width / 2 ? hoverData.x - 110 : hoverData.x + 10} 
               y={Math.min(yScale(hoverData.pnl), yScale(hoverData.currentPnl)) - 50} 
-              width="70" 
+              width="100" 
               height="40" 
               rx="6" 
               fill="#1e293b" 
@@ -371,7 +378,7 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
               fillOpacity="0.9"
             />
             <text 
-              x={hoverData.x > width / 2 ? hoverData.x - 45 : hoverData.x + 45} 
+              x={hoverData.x > width / 2 ? hoverData.x - 60 : hoverData.x + 60} 
               y={Math.min(yScale(hoverData.pnl), yScale(hoverData.currentPnl)) - 35} 
               textAnchor="middle" 
               className="text-[9px] font-bold fill-gray-400"
@@ -381,12 +388,12 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
               </tspan>
             </text>
             <text 
-              x={hoverData.x > width / 2 ? hoverData.x - 45 : hoverData.x + 45} 
+              x={hoverData.x > width / 2 ? hoverData.x - 60 : hoverData.x + 60} 
               y={Math.min(yScale(hoverData.pnl), yScale(hoverData.currentPnl)) - 22} 
               textAnchor="middle" 
               className="text-[9px] font-bold fill-gray-400"
             >
-              NOW: <tspan className="fill-orange-400">
+              Current P/L: <tspan className="fill-orange-400">
                 {hoverData.currentPnl >= 0 ? '+' : '-'}${Math.abs(hoverData.currentPnl).toFixed(2)}
               </tspan>
             </text>

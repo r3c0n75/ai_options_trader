@@ -14,6 +14,7 @@ from alpaca_trading import (
     close_all_positions, get_orders, cancel_order,
     get_account, get_portfolio_history
 )
+from data_fetcher import get_stock_price
 from ai_engine import get_symbol_vibe, get_research_response
 
 # Create database tables
@@ -416,15 +417,20 @@ def get_open_trades(status: str = "open"):
                 u_price = float(p.get("last_underlying_price") or 0.0)
                 
                 # If it's an option and u_price is missing, try to derive it from the stock position
-                if not u_price and any(c.isdigit() for c in sym) and len(sym) > 10:
+                is_option = any(c.isdigit() for c in sym) and len(sym) > 10
+                if not u_price and is_option:
                     # Extract underlying from OCC (e.g., SBUX260417P00095000 -> SBUX)
                     match = re.search(r'^([A-Z]+)\d', sym)
                     if match:
                         u_sym = match.group(1)
                         u_price = symbol_price_map.get(u_sym, 0.0)
+                        
+                        # Proactive fetch if missing
+                        if not u_price:
+                            u_price = get_stock_price(u_sym)
                 
-                # Final fallback to current price if still 0 (for stocks)
-                if not u_price:
+                # Final fallback to current price ONLY if it's a stock
+                if not u_price and not is_option:
                     u_price = float(p.get("current_price") or 0.0)
 
                 trades.append(TradeResponse(
@@ -490,13 +496,18 @@ def get_open_trades(status: str = "open"):
             sym = p["symbol"]
             u_price = float(p.get("last_underlying_price") or 0.0)
             
-            if not u_price and any(c.isdigit() for c in sym) and len(sym) > 10:
+            is_option = any(c.isdigit() for c in sym) and len(sym) > 10
+            if not u_price and is_option:
                 match = re.search(r'^([A-Z]+)\d', sym)
                 if match:
                     u_sym = match.group(1)
                     u_price = symbol_price_map.get(u_sym, 0.0)
+                    
+                    # Proactive fetch if missing
+                    if not u_price:
+                        u_price = get_stock_price(u_sym)
             
-            if not u_price:
+            if not u_price and not is_option:
                 u_price = float(p.get("current_price") or 0.0)
 
             trades.append(TradeResponse(
