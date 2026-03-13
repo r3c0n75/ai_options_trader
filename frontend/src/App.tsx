@@ -487,11 +487,36 @@ function App() {
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchData();
-  }, [portfolioPeriod]);
 
-  useEffect(() => {
-    const interval = setInterval(fetchData, 5000); // Refresh every 5s
+    // Setup polling
+    const interval = setInterval(() => {
+      // Background fetch without full-page loading state
+      const silentFetch = async () => {
+        try {
+          const [tradesRes, accountRes, historyRes, allTradesRes] = await Promise.all([
+            fetch('http://localhost:8000/trades'),
+            fetch('http://localhost:8000/account'),
+            fetch(`http://localhost:8000/portfolio/history?period=${portfolioPeriod === 'All' ? 'all' : portfolioPeriod}`),
+            fetch('http://localhost:8000/trades?status=all')
+          ]);
+
+          if (tradesRes.ok) setTrades(await tradesRes.json());
+          if (accountRes.ok) setAccount(await accountRes.json());
+          if (historyRes.ok) setHistory(await historyRes.json());
+          if (allTradesRes.ok) {
+            const all = await allTradesRes.json();
+            setRecentOrders(all.filter((t: any) => t.status !== 'OPEN').slice(0, 10));
+          }
+          setError(null);
+        } catch (err) {
+          console.error("Silent background refresh failed", err);
+        }
+      };
+      silentFetch();
+    }, 30000); 
+
     return () => clearInterval(interval);
   }, [portfolioPeriod]);
 

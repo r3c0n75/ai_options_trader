@@ -1,7 +1,11 @@
 import yfinance as yf
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import traceback
 import os
 import httpx
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -20,6 +24,15 @@ ALPACA_NEWS_URL = "https://data.alpaca.markets/v1beta1/news"
 
 MACRO_BASKET = ["SPY", "QQQ", "IWM", "GLD", "TMF", "BND"]
 
+# Reuse a single httpx client for performance and to avoid socket churn
+_HTTP_CLIENT = httpx.Client(timeout=10.0)
+
+# Faster yfinance session
+_YF_SESSION = requests.Session()
+retries = Retry(total=2, backoff_factor=0.1)
+_YF_SESSION.mount('https://', HTTPAdapter(max_retries=retries))
+_YF_SESSION.mount('http://', HTTPAdapter(max_retries=retries))
+
 def get_headers():
     return {
         "APCA-API-KEY-ID": ALPACA_API_KEY,
@@ -27,44 +40,57 @@ def get_headers():
         "Accept": "application/json"
     }
 
+_PRICE_CACHE = {}
+_PRICE_CACHE_TTL = 30 # 30 seconds
+
 def get_vix_level() -> float:
     """Fetches the current or last closing price of the VIX indicator."""
     # VIX is an index, Alpaca basic data doesn't always cover indices for free, so we keep yfinance for VIX
     try:
-        vix = yf.Ticker("^VIX")
-        data = vix.history(period="1d")
+        vix = yf.Ticker("^VIX", session=_YF_SESSION)
+        data = vix.history(period="1d", timeout=5)
         if data.empty:
-            data = vix.history(period="5d")
+            data = vix.history(period="5d", timeout=5)
         
         if not data.empty:
             return float(data['Close'].iloc[-1])
         return 18.0  # Safe default if API completely fails
     except Exception as e:
-        print(f"Error fetching VIX: {traceback.format_exc()}")
+        print(f"Error fetching VIX: {e}")
         return 18.0
 
 def get_stock_price(symbol: str) -> float:
-    """Fetches the latest trade price of a stock symbol using Alpaca."""
+    """Fetches the latest trade price of a stock symbol using Alpaca with caching."""
+    now = datetime.now()
+    if symbol in _PRICE_CACHE:
+        price, ts = _PRICE_CACHE[symbol]
+        if (now - ts).total_seconds() < _PRICE_CACHE_TTL:
+            return price
+
     if not ALPACA_API_KEY:
-        # Fallback to yfinance if no keys are provided yet
+        # Fallback to yfinance
         try:
             ticker = yf.Ticker(symbol)
-            data = ticker.history(period="1d")
+            data = ticker.history(period="1d", timeout=5)
             if not data.empty:
-                return float(data['Close'].iloc[-1])
+                val = float(data['Close'].iloc[-1])
+                _PRICE_CACHE[symbol] = (val, now)
+                return val
             return 0.0
         except Exception:
             return 0.0
 
     try:
         url = f"{ALPACA_STOCKS_URL}/{symbol}/trades/latest"
-        response = httpx.get(url, headers=get_headers())
+        response = _HTTP_CLIENT.get(url, headers=get_headers())
         if response.status_code == 200:
             data = response.json()
-            return float(data['trade']['p'])
+            val = float(data['trade']['p'])
+            _PRICE_CACHE[symbol] = (val, now)
+            return val
         return 0.0
     except Exception as e:
-        print(f"Error fetching stock price from Alpaca: {e}")
+        print(f"Error fetching stock price for {symbol} from Alpaca: {e}")
         return 0.0
 
 def get_options_chain(symbol: str = "SPY", target_expiration: str = None):
@@ -80,12 +106,16 @@ def get_options_chain(symbol: str = "SPY", target_expiration: str = None):
     try:
         # Fetch active contracts from Alpaca
         today = datetime.utcnow().strftime('%Y-%m-%d')
-        url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=10000"
-        response = httpx.get(url, headers=get_headers())
+        if target_expiration:
+            url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_eq={target_expiration}&limit=1000"
+        else:
+            url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=10000"
+            
+        response = _HTTP_CLIENT.get(url, headers=get_headers())
         
         if response.status_code != 200:
             print(f"Alpaca contracts API error: {response.status_code} {response.text}")
-            return _yfinance_options_fallback(symbol, current_price)
+            return _yfinance_options_fallback(symbol, current_price, target_expiration)
             
         contracts = response.json().get('option_contracts', [])
         if not contracts:
@@ -133,7 +163,7 @@ def get_options_chain(symbol: str = "SPY", target_expiration: str = None):
             try:
                 # Use data.alpaca.markets for snapshots (quotes/trades)
                 snap_url = f"{ALPACA_OPTIONS_URL}/snapshots?symbols={','.join(contract_symbols)}"
-                snap_res = httpx.get(snap_url, headers=get_headers())
+                snap_res = _HTTP_CLIENT.get(snap_url, headers=get_headers())
                 if snap_res.status_code == 200:
                     snapshots = snap_res.json().get('snapshots', {})
             except Exception as e:
@@ -178,13 +208,13 @@ def get_options_chain(symbol: str = "SPY", target_expiration: str = None):
         }
     except Exception as e:
         print(f"Error fetching Alpaca options contracts: {traceback.format_exc()}")
-        return _yfinance_options_fallback(symbol, current_price)
+        return _yfinance_options_fallback(symbol, current_price, target_expiration)
 
 def get_all_expirations(symbol: str) -> list:
     """Returns a sorted list of all active expiration dates for a symbol."""
     if not ALPACA_API_KEY:
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(symbol, session=_YF_SESSION)
             return list(ticker.options)
         except Exception:
             return []
@@ -192,7 +222,7 @@ def get_all_expirations(symbol: str) -> list:
     try:
         today = datetime.utcnow().strftime('%Y-%m-%d')
         url = f"https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols={symbol}&status=active&expiration_date_gte={today}&limit=10000"
-        response = httpx.get(url, headers=get_headers())
+        response = _HTTP_CLIENT.get(url, headers=get_headers())
         if response.status_code == 200:
             contracts = response.json().get('option_contracts', [])
             expirations = sorted(list(set([c['expiration_date'] for c in contracts])))
@@ -202,22 +232,25 @@ def get_all_expirations(symbol: str) -> list:
         print(f"Error fetching all expirations: {e}")
         return []
 
-def _yfinance_options_fallback(symbol: str, current_price: float):
+def _yfinance_options_fallback(symbol: str, current_price: float, target_expiration: str = None):
     # Original yfinance logic
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=_YF_SESSION)
         expirations = ticker.options
         
         if not expirations:
             return None
 
-        target_date = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d')
-        suitable_expiries = [e for e in expirations if e >= target_date]
-        
-        if suitable_expiries:
-            selected_expiry = suitable_expiries[0]
+        if target_expiration and target_expiration in expirations:
+            selected_expiry = target_expiration
         else:
-            selected_expiry = expirations[-1]
+            target_date = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d')
+            suitable_expiries = [e for e in expirations if e >= target_date]
+            
+            if suitable_expiries:
+                selected_expiry = suitable_expiries[0]
+            else:
+                selected_expiry = expirations[-1]
 
         opt_chain = ticker.option_chain(selected_expiry)
         
@@ -247,7 +280,7 @@ def get_macro_etfs(symbols: list = None) -> dict:
     try:
         # Alpaca Multi-Stock Snapshot
         url = f"{ALPACA_STOCKS_URL}/snapshots?symbols={','.join(basket)}"
-        response = httpx.get(url, headers=get_headers())
+        response = _HTTP_CLIENT.get(url, headers=get_headers())
         if response.status_code == 200:
             data = response.json()
             results = []
@@ -304,7 +337,7 @@ def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> 
 
         # Explicitly request IEX feed for free tier and sort DESC to get LATEST bars first
         url = f"{ALPACA_STOCKS_URL}/bars?symbols={symbol}&timeframe={timeframe_adj}&start={start}&limit=1000&adjustment=all&sort=desc&feed=iex"
-        response = httpx.get(url, headers=get_headers())
+        response = _HTTP_CLIENT.get(url, headers=get_headers())
         
         if response.status_code == 200:
             raw_bars = response.json().get('bars', {}).get(symbol, [])
@@ -337,7 +370,7 @@ def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> 
 
 def _yfinance_bars_fallback(symbol: str, period: str) -> list:
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=_YF_SESSION)
         interval = "1m" if period == "1D" else "1h" if period == "1M" else "1d"
         yf_period = "1d" if period == "1D" else "1mo" if period == "1M" else "1y" if period == "12M" else "3mo"
         
@@ -357,31 +390,41 @@ def _yfinance_bars_fallback(symbol: str, period: str) -> list:
         print(f"Error fetching bars from yfinance fallback: {e}")
         return []
 
+def _fetch_yf_etf(symbol):
+    try:
+        ticker = yf.Ticker(symbol, session=_YF_SESSION)
+        data = ticker.history(period="2d", timeout=5)
+        if len(data) >= 2:
+            current = float(data['Close'].iloc[-1])
+            prev = float(data['Close'].iloc[-2])
+            change_pct = ((current - prev) / prev) * 100
+            return {
+                "symbol": symbol,
+                "price": round(current, 2),
+                "change_pct": round(change_pct, 2)
+            }
+        elif len(data) == 1:
+            return {
+                "symbol": symbol,
+                "price": round(float(data['Close'].iloc[-1]), 2),
+                "change_pct": 0.0
+            }
+    except Exception as e:
+        print(f"Error fetching ETF {symbol} from yfinance: {e}")
+    return None
+
 def _yfinance_macro_fallback(symbols: list = None) -> dict:
-    results = []
     basket = symbols if symbols else MACRO_BASKET
-    for symbol in basket:
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="2d") # Need 2 days to get previous close
-            if len(data) >= 2:
-                current = float(data['Close'].iloc[-1])
-                prev = float(data['Close'].iloc[-2])
-                change_pct = ((current - prev) / prev) * 100
-                results.append({
-                    "symbol": symbol,
-                    "price": round(current, 2),
-                    "change_pct": round(change_pct, 2)
-                })
-            elif len(data) == 1:
-                results.append({
-                    "symbol": symbol,
-                    "price": round(float(data['Close'].iloc[-1]), 2),
-                    "change_pct": 0.0
-                })
-        except Exception as e:
-            print(f"Error fetching ETF {symbol} from yfinance: {e}")
-    return {"feed": "Yahoo Finance", "data": results}
+    results = []
+    
+    with ThreadPoolExecutor(max_workers=len(basket)) as executor:
+        futures = {executor.submit(_fetch_yf_etf, s): s for s in basket}
+        for future in futures:
+            res = future.result()
+            if res:
+                results.append(res)
+                
+    return {"feed": "Yahoo Finance (Parallel)", "data": results}
 
 def get_financial_news(limit: int = 15) -> list:
     """Fetches the latest breaking financial news for the macro basket."""
@@ -391,7 +434,7 @@ def get_financial_news(limit: int = 15) -> list:
 
     try:
         url = f"{ALPACA_NEWS_URL}?symbols={','.join(MACRO_BASKET)}&limit={limit}&sort=desc"
-        response = httpx.get(url, headers=get_headers())
+        response = _HTTP_CLIENT.get(url, headers=get_headers())
         if response.status_code == 200:
             data = response.json().get('news', [])
             results = []
@@ -421,7 +464,7 @@ def get_financial_news(limit: int = 15) -> list:
 def _yfinance_news_fallback(limit: int = 15) -> list:
     try:
         # Just grab SPY news to simulate macro news
-        ticker = yf.Ticker("SPY")
+        ticker = yf.Ticker("SPY", session=_YF_SESSION)
         news = ticker.news
         results = []
         for item in news[:limit]:

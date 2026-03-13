@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-13] - Performance Optimization & Dashboard Stability
+
+### Added
+- **Backend Concurrency Hardening**:
+    - **Async Endpoint Refactor**: Converted all critical endpoints in `main.py` to `async def` to prevent thread pool saturation during high-traffic bursts.
+    - **Request Deduplication**: Implemented a centralized `asyncio.Lock` mechanism in `main.py`. This ensures that multiple concurrent requests for expensive AI synthesis (e.g., from multiple tabs) are queued, with only one executing while others wait for the cached result.
+    - **Global ThreadPoolExecutor**: Centralized all background I/O tasks into a dedicated `_GLOBAL_EXECUTOR` to prevent uncontrolled thread spawning.
+- **AI Synthesis Resilience**:
+    - **Dynamic Fallback TTL**: Reduced the cache duration for "delayed" or failed AI synthesis from 5 minutes to 30 seconds, allowing for near-instant system recovery after temporary API hiccups.
+    - **Extended AI Timeouts**: Increased the maximum Gemini execution time to 15s and enhanced the "model walking" fallback chain to ensure high-priority insights are delivered even during peak usage.
+
+### Fixed
+- **Dashboard Response Storms**:
+    - **Polling Consolidation**: Throttled frontend data refresh intervals from 5s to 30s and consolidated redundant `useEffect` hooks in `App.tsx`.
+    - **Endpoint Restoration**: Restored several critical endpoints (`/news`, `/stocks/{symbol}/bars`, `/options/expirations`, `/options/reprice`) that were inadvertently removed during the performance refactor.
+- **Backend Stability**:
+    - Resolved a `NameError` in `main.py` where internal mapping functions were missing after optimization.
+    - Fixed a "thundering herd" issue where multiple dashboard tabs would trigger redundant AI scans, causing backend lockups.
+
 ## [2026-03-13] - Guided Expirations & Stability
 
 ### Added

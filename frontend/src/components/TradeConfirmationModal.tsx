@@ -152,19 +152,32 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
     }
   };
 
+  /**
+   * Helper to parse YYYY-MM-DD into a local Date without timezone shifts
+   */
+  const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const currentTrade = internalTrade || trade;
 
   if (!isOpen || !currentTrade) return null;
 
   const getFilteredExpirations = () => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize today to midnight local
+    
     if (!Array.isArray(availableExpirations)) return [];
     
     return availableExpirations.filter(date => {
-      const d = new Date(date);
+      const d = parseLocalDate(date);
       const diff = (d.getTime() - today.getTime()) / (1000 * 3600 * 24);
-      if (selectedHorizon === 'Weekly') return diff < 14 && diff >= 0;
-      if (selectedHorizon === 'Monthly') return diff >= 14 && diff < 270;
+      
+      // Increased weekly range to 21 days for better visibility
+      if (selectedHorizon === 'Weekly') return diff < 21 && diff >= 0;
+      if (selectedHorizon === 'Monthly') return diff >= 21 && diff < 270;
       return diff >= 270;
     });
   };
@@ -289,7 +302,7 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide px-1">
-                  {getFilteredExpirations().map((date) => (
+                    {getFilteredExpirations().map((date) => (
                     <button
                       key={date}
                       onClick={() => handleReprice(date)}
@@ -300,7 +313,7 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                         : 'bg-gray-800/40 border-white/5 text-gray-500 hover:border-white/10'
                       } ${isRepricing ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      {new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
+                      {parseLocalDate(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
                     </button>
                   ))}
                   {getFilteredExpirations().length === 0 && (

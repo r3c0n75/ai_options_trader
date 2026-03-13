@@ -16,9 +16,11 @@ def get_headers():
         "Accept": "application/json"
     }
 
+_HTTP_CLIENT = httpx.Client(timeout=10.0)
+
 def get_account():
     url = f"{PAPER_API_URL}/account"
-    response = httpx.get(url, headers=get_headers())
+    response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
     raise Exception(f"Failed to fetch account: {response.text}")
@@ -27,7 +29,7 @@ def get_portfolio_history(period: str = "1D", timeframe: str = None):
     url = f"{PAPER_API_URL}/account/portfolio/history?period={period}"
     if timeframe:
         url += f"&timeframe={timeframe}"
-    response = httpx.get(url, headers=get_headers())
+    response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
     return {}
@@ -41,7 +43,7 @@ def submit_order(symbol: str, qty: int, side: str = "buy"):
         "type": "market",
         "time_in_force": "day"
     }
-    response = httpx.post(url, headers=get_headers(), json=payload)
+    response = _HTTP_CLIENT.post(url, headers=get_headers(), json=payload)
     if response.status_code not in (200, 201):
         raise Exception(f"Failed to submit order: {response.text}")
     return response.json()
@@ -80,7 +82,7 @@ def submit_options_order(strategy: str, legs: list, quantity: int = 1, limit_pri
         if limit_price is not None:
             payload["limit_price"] = str(round(limit_price, 2))
         
-    response = httpx.post(url, headers=get_headers(), json=payload)
+    response = _HTTP_CLIENT.post(url, headers=get_headers(), json=payload)
     if response.status_code not in (200, 201):
         raise Exception(f"Failed to submit options order: {response.text}")
     return response.json()
@@ -88,7 +90,7 @@ def submit_options_order(strategy: str, legs: list, quantity: int = 1, limit_pri
 
 def get_positions():
     url = f"{PAPER_API_URL}/positions"
-    response = httpx.get(url, headers=get_headers())
+    response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
     print(f"FAILED TO FETCH POSITIONS: {response.status_code} - {response.text}")
@@ -96,14 +98,14 @@ def get_positions():
 
 def get_orders(status: str = "open", limit: int = 50):
     url = f"{PAPER_API_URL}/orders?status={status}&limit={limit}"
-    response = httpx.get(url, headers=get_headers())
+    response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
     return []
 
 def get_order(order_id: str):
     url = f"{PAPER_API_URL}/orders/{order_id}"
-    response = httpx.get(url, headers=get_headers())
+    response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
     return {}
@@ -111,14 +113,14 @@ def get_order(order_id: str):
 def close_position(symbol: str):
     url = f"{PAPER_API_URL}/positions/{symbol}"
     # This will liquidate the position completely
-    response = httpx.delete(url, headers=get_headers())
+    response = _HTTP_CLIENT.delete(url, headers=get_headers())
     if response.status_code not in (200, 201, 204, 207):
         raise Exception(f"Failed to close position: {response.text}")
     return {}
 
 def cancel_order(order_id: str):
     url = f"{PAPER_API_URL}/orders/{order_id}"
-    response = httpx.delete(url, headers=get_headers())
+    response = _HTTP_CLIENT.delete(url, headers=get_headers())
     if response.status_code not in (200, 201, 204, 207):
         raise Exception(f"Failed to cancel order: {response.text}")
     return {}
@@ -131,14 +133,14 @@ def replace_order(order_id: str, limit_price: float = None, qty: int = None):
     if qty is not None:
         payload["qty"] = str(qty)
         
-    response = httpx.patch(url, headers=get_headers(), json=payload)
+    response = _HTTP_CLIENT.patch(url, headers=get_headers(), json=payload)
     if response.status_code not in (200, 201):
         raise Exception(f"Failed to update order: {response.text}")
     return response.json()
 
 def close_all_positions():
     url = f"{PAPER_API_URL}/positions?cancel_orders=true"
-    response = httpx.delete(url, headers=get_headers())
+    response = _HTTP_CLIENT.delete(url, headers=get_headers())
     if response.status_code not in (200, 201, 204, 207):
         raise Exception(f"Failed to close all positions: {response.text}")
     return {}

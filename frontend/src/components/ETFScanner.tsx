@@ -68,7 +68,7 @@ export const ETFScanner: React.FC<ETFScannerProps> = ({ onSelect }) => {
         }
       };
       silentFetch();
-    }, 5000);
+    }, 30000); // Throttled to 30s
 
     return () => clearInterval(interval);
   }, [symbols]);

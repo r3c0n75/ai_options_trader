@@ -33,8 +33,8 @@ export const MarketHealth: React.FC = () => {
   if (loading) return <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800 animate-pulse h-40"></div>;
   if (!data) return <div className="text-red-500">Error loading market health</div>;
 
-  const isSeller = data.status.includes("Seller");
-  const isBuyer = data.status.includes("Buyer");
+  const isSeller = data?.status?.includes("Seller") || false;
+  const isBuyer = data?.status?.includes("Buyer") || false;
 
   return (
     <div className="p-6 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800 shadow-xl relative overflow-hidden">

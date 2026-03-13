@@ -58,6 +58,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Strategy-Specific Payoff Scaling**: Refined the `StrategyPayoff` logic to ignore high stock cost bases in the zoom range, focusing exclusively on option strikes and premium breakevens for a consistent analytical view across both recommendations and portfolio positions.
     - **Short Leg Detection**: Grouping logic explicitly checks the `side` property to account for absolute-value quantity normalization in the Alpaca API, ensuring correct Payoff Diagram orientation.
     - **Advanced Portfolio Sorting**: Implemented interactive column headers for the **Top Positions** table. Supports sorting by Asset, DTE, Price, Qty, Market Value, Total P/L, Status, and AI Action. The sort state is robust against automatic data refreshes.
+* **Backend Performance & Concurrency**:
+    - **Async Endpoint Hardening**: Standardized on `async def` for all FastAPI endpoints to ensure high-throughput request handling and prevent thread pool exhaustion.
+    - **Global Request Locking**: Implemented a per-endpoint `asyncio.Lock` mechanism in `main.py` to deduplicate expensive concurrent requests (e.g., from multiple dashboard tabs). This ensures "AI Synthesis" only runs once per cycle across all users/tabs.
+    - **Centralized ThreadPoolExecutor**: Consolidated all blocking I/O (yfinance, AI completions) into a shared `_GLOBAL_EXECUTOR` for controlled resource management.
+    - **Dynamic AI Resilience**: Implemented shorter (30s) TTL for fallback/delayed AI synthesis in `engine.py`, ensuring faster recovery from temporary API timeouts.
 * **Symbol Analysis & AI Integration**:
     - **Context-Aware AI Buttons**: Trade suggestions now feature individualized "AI Insight" buttons that link directly to symbol-specific analysis modals.
     - **Visual Continuity**: The "AI Insight" badge is mirrored inside the Symbol Analysis modal for a cohesive premium experience.
@@ -121,6 +126,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Portfolio Sorting Persistence**: When implementing sorting in a real-time table, the sort logic must be applied *after* each data refresh (or wrapped in a reactive hook like `useMemo`) to prevent the dashboard from jumping or losing the user's preferred view during auto-sync events.
 * **API Route Ambiguity**: Fastly/FastAPI backends often use absolute root routes (e.g., `/options`). Prefixing frontend calls with `/api/` (a common convention) can lead to 404 errors if the proxy layer isn't explicitly configured. 
 * **Defensive Rendering for External Data**: Never assume that a successful network response contains the expected data structure (e.g., an array). Always use `Array.isArray()` and optional chaining inside `useEffect` and `map()` calls to prevent "black screen" crashes caused by malformed 404 error objects masquerading as JSON.
+* **Concurrency vs. Request Storms**: Aggressive frontend polling (5s) paired with slow backend processing (AI synthesis) can lead to "Request Storms" that crash the server. **Best practice**: Throttle polling to 30s+ and use `asyncio.Lock` on the backend to deduplicate requests.
+* **Endpoint Stewardship**: During large backend refactors, always audit the FastAPI app for missing decorated endpoints. Accidental removal of critical endpoints (like `/news`) can silently disable entire features while the dashboard appears "snappy".
+* **Gemini Execution Cutoffs**: For web UIs, Gemini execution should be strictly bounded (e.g., 15s) with a robust "model walking" fallback chain. If all models fail, immediately return a "Delayed" state with a short cache TTL (30s) to allow for quick auto-recovery.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

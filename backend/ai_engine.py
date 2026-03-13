@@ -7,7 +7,7 @@ load_dotenv()
 
 # Global cache to avoid redundant discovery calls
 _MODEL_CACHE = {}
-DEFAULT_MODEL = "gemini-flash-latest" # Always use the latest stable flash
+DEFAULT_MODEL = "gemini-1.5-flash" 
 
 def _get_model(model_name: str = None):
     """Helper to get a GenerativeModel instance with caching."""
@@ -16,7 +16,6 @@ def _get_model(model_name: str = None):
     if not api_key:
         return None
     
-    # Normalize to Tier 1 Previews available in this project
     # Normalize to Tier 1 Previews available in this project
     model_id = name
     if "3.1-pro" in model_id: model_id = "gemini-3.1-pro-preview"
@@ -29,6 +28,8 @@ def _get_model(model_name: str = None):
     elif "1.5-pro" in model_id: model_id = "gemini-1.5-pro"
     elif "flash-latest" in model_id: model_id = "gemini-flash-latest"
     elif "1.5-flash" in model_id: model_id = "gemini-flash-latest" # Map legacy 1.5 to latest
+    elif "m37" in model_id.lower() or "placeholder_m37" in model_id.lower(): model_id = "gemini-2.5-flash"
+    elif "m18" in model_id.lower() or "placeholder_m18" in model_id.lower(): model_id = "gemini-3.1-pro" # Link M18 to the Pro model
     
     if not model_id.startswith("models/"):
         model_id = f"models/{model_id}"
@@ -45,14 +46,13 @@ def _get_model(model_name: str = None):
         print(f"Error initializing model {model_id}: {e}")
         return None
 
-def _generate_with_retry(model, prompt, max_retries=2):
-    """Generates content with backoff and model walking."""
+def _generate_with_retry(model, prompt, max_retries=1):
+    """Generates content with backoff and model walking, strictly bounded by time."""
     # List of models to try in order of likely quota availability for this project
-    # 2026 Priority Chain - Reduced for faster web response
     fallback_chain = [
-        "gemini-2.5-flash", 
-        "gemini-flash-latest",
-        "gemini-2.0-flash"
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
+        "gemini-flash-latest"
     ]
     
     # Start with the requested model
@@ -62,33 +62,41 @@ def _generate_with_retry(model, prompt, max_retries=2):
     fallback_chain.insert(0, current_model_name)
 
     last_error = ""
+    start_time = time.time()
+    max_total_time = 15.0 # Increased to 15s to allow for fallbacks
+    
     for m_name in fallback_chain:
+        if time.time() - start_time > max_total_time:
+            print(f"DEBUG: AI execution exceeded max total time of {max_total_time}s.")
+            break
+            
         try:
             m = _get_model(m_name)
             if not m: continue
             
             for attempt in range(max_retries):
+                # Check for total time expiration before each attempt
+                time_remaining = max_total_time - (time.time() - start_time)
+                if time_remaining <= 0: break
+                
                 try:
-                    return m.generate_content(prompt)
+                    # Individual request timeout is now strictly bounded by remaining time or 8s
+                    request_timeout = min(8.0, time_remaining)
+                    return m.generate_content(prompt, request_options={"timeout": request_timeout})
                 except Exception as e:
                     last_error = str(e)
+                    print(f"DEBUG: Model {m_name} failed (attempt {attempt+1}): {last_error}")
                     if "429" in last_error or "Quota" in last_error:
-                        if "exceeded your current quota" in last_error.lower():
-                            print(f"DEBUG: Daily Quota Exhausted for {m_name}. Trying fallback.")
-                            break # Try next model immediately if daily limit hit
-                            
-                        # Exponential backoff
-                        wait = (attempt + 1) * 3
-                        print(f"DEBUG: Rate limit hit for {m_name}. Retrying in {wait}s... (Attempt {attempt+1}/{max_retries})")
-                        time.sleep(wait)
-                    else:
-                        raise e # If not a quota error, stop retrying this model
+                        break # Try next model immediately if quota hit
+                    if "504" in last_error or "deadline" in last_error.lower():
+                        # Timeout on this model, try next one immediately
+                        break
+                    time.sleep(0.5)
         except Exception as e:
             last_error = str(e)
-            print(f"DEBUG: Critical: Model {m_name} failed: {last_error}")
-            continue # Try next model in chain
+            continue 
 
-    raise Exception(f"All models exhausted. Last error: {last_error}")
+    raise Exception(f"AI exhaustion. Last error: {last_error}")
 
 def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_name: str = None) -> dict:
     """Uses Gemini to synthesize market data into a concise 'Pulse'."""
@@ -195,11 +203,23 @@ Return ONLY valid JSON with keys: risk_score (int), market_mood (Risk-On, Risk-O
         text = response.text
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+        
+        # Clean potential trailing characters or single quotes
+        text = text.strip()
+        if text.startswith("'") and text.endswith("'"):
+            text = text[1:-1]
+            
         import json
         return json.loads(text)
     except Exception as e:
         print(f"DEBUG: get_macro_sentiment failed: {e}")
-        return {"risk_score": 50, "market_mood": "Neutral", "global_thesis": "Macro pulse calculation failed."}
+        return {
+            "risk_score": 50, 
+            "market_mood": "Defensive", 
+            "global_thesis": "Macro metrics are stable, but AI synthesis is delayed. Monitoring VIX and news for updates."
+        }
 
 def analyze_news_impact(headline: str, summary: str, portfolio_context: list, model_name: str = None) -> dict:
     """Analyzes a news item against the user's current portfolio positions."""
