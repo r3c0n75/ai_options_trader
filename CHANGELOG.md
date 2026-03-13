@@ -19,9 +19,17 @@ All notable changes to this project will be documented in this file.
 
 - **Trade Execution & Safety**:
     - **Limit Order Protection**: Implemented mandatory **Limit Orders** for all multi-leg spreads, using recommended premiums to prevent "bad fills" and guaranteed losses from leg-in errors.
-    - **Active Status Polling**: Added backend polling (5s) to detect immediate order fills after submission.
-    - **Order Feedback UI**: Developed distinct "Order Executed" (Filled) and "Order Working" (Pending) states in the confirmation modal.
-    - **Recent Orders Mapping**: Refactored backend mapping to robustly extract underlying symbol (e.g., "USO") and trade side from multi-leg option legs.
+    - **Active Fill Detection**: Backend polls Alpaca for 5s after submission to detect and report immediate fills, enabling distinct "Executed" vs "Working" (Pending) UI states.
+    - **Order Lifecycle Controls**: 
+        - **Instant Updates**: Users can modify the limit price of pending orders via a dedicated row-level modal.
+        - **Cancellation**: One-click cancellation for orders in the `PENDING` state.
+        - **Resubmission**: "Smart Retry" allows instant resubmission of failed or cancelled trades by leveraging preserved leg and strike data in the `recentOrders` set.
+    - **Option-Only Payloads**: Automatically filters out stock legs from multi-leg option orders to comply with Alpaca API requirements for OCC symbols.
+
+- **Order Management & Lifecycle**:
+    - **Cancel Functionality**: Added row-level "Cancel" action for pending orders.
+    - **Limit Price Modification**: Implemented an "Update Price" flow that uses Alpaca's Replace API to adjust limit prices on active orders.
+    - **Smart Retry**: Developed a one-click resubmission flow for cancelled or rejected orders, pre-populating the trade flow with historical leg data and strategy configurations.
 
 ### Changed
 - **UI Branding**: Renamed "Deep Research" to **"AI Chat"** for a more conversational and intuitive user experience.

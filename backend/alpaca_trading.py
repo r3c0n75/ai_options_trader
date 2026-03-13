@@ -123,9 +123,15 @@ def cancel_order(order_id: str):
         raise Exception(f"Failed to cancel order: {response.text}")
     return {}
 
-def close_all_positions():
-    url = f"{PAPER_API_URL}/positions?cancel_orders=true"
-    response = httpx.delete(url, headers=get_headers())
-    if response.status_code not in (200, 201, 204, 207):
-        raise Exception(f"Failed to close all positions: {response.text}")
-    return {}
+def replace_order(order_id: str, limit_price: float = None, qty: int = None):
+    url = f"{PAPER_API_URL}/orders/{order_id}"
+    payload = {}
+    if limit_price is not None:
+        payload["limit_price"] = str(round(limit_price, 2))
+    if qty is not None:
+        payload["qty"] = str(qty)
+        
+    response = httpx.patch(url, headers=get_headers(), json=payload)
+    if response.status_code not in (200, 201):
+        raise Exception(f"Failed to update order: {response.text}")
+    return response.json()

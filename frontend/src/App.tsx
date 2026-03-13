@@ -23,10 +23,13 @@ import {
   Info,
   Clock,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Edit3,
+  XCircle
 } from 'lucide-react';
 import { Omnisearch } from './components/Omnisearch';
 import { SymbolAnalysis } from './components/SymbolAnalysis';
+import { TradeConfirmationModal } from './components/TradeConfirmationModal';
 
 interface AIRecommendation {
   action: 'HOLD' | 'CLOSE' | 'ROLL';
@@ -50,6 +53,7 @@ interface TradeResponse {
   side: string;
   opened_at: string;
   ai_rec?: AIRecommendation;
+  legs?: any[];
 }
 
 interface AccountStats {
@@ -90,12 +94,15 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  const [newLimitPrice, setNewLimitPrice] = useState<string>("");
   const [searchedSymbol, setSearchedSymbol] = useState<string | null>(null);
   const [portfolioPeriod, setPortfolioPeriod] = useState<string>('1D');
   const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
   const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
   const [selectedActionRec, setSelectedActionRec] = useState<{ trade: any, rec: AIRecommendation } | null>(null);
   const [analyzingNews, setAnalyzingNews] = useState<any | null>(null);
+  const [retryTrade, setRetryTrade] = useState<any | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'market_value', direction: 'desc' });
 
   const handleRequestSort = (key: string) => {
@@ -523,6 +530,43 @@ function App() {
     
     // Clear highlight after 10 seconds
     setTimeout(() => setHighlightedSymbol(null), 10000);
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/trades/${orderId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Failed to cancel order');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Network error');
+    }
+  };
+
+  const handleUpdateOrderPrice = async () => {
+    if (!editingOrder || !newLimitPrice) return;
+    try {
+      const response = await fetch(`http://localhost:8000/trades/${editingOrder.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit_price: parseFloat(newLimitPrice) })
+      });
+      if (response.ok) {
+        setEditingOrder(null);
+        setNewLimitPrice("");
+        fetchData();
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Failed to update order');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Network error');
+    }
   };
 
 
@@ -1014,7 +1058,8 @@ function App() {
                       <th className="py-4 px-6 font-semibold">Qty</th>
                       <th className="py-4 px-6 font-semibold">Avg. Fill Price</th>
                       <th className="py-4 px-6 font-semibold">Status</th>
-                      <th className="py-4 px-6 font-semibold text-right">Submitted At</th>
+                      <th className="py-4 px-6 font-semibold">Submitted At</th>
+                      <th className="py-4 px-6 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/50">
@@ -1039,7 +1084,59 @@ function App() {
                               {o.status}
                             </span>
                           </td>
-                          <td className="py-4 px-6 text-[10px] text-gray-500 font-mono text-right">{new Date(o.opened_at).toLocaleString()}</td>
+                          <td className="py-4 px-6 text-[10px] text-gray-500 font-mono">{new Date(o.opened_at).toLocaleString()}</td>
+                          <td className="py-4 px-6 text-right">
+                            <div className="flex gap-2 justify-end">
+                              {o.status === 'PENDING' && (
+                                <>
+                                  <button 
+                                    onClick={() => {
+                                      setEditingOrder(o);
+                                      setNewLimitPrice(o.entry_price ? o.entry_price.toString() : "");
+                                    }}
+                                    className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                    title="Update Price"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleCancelOrder(o.id)}
+                                    className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                    title="Cancel Order"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                              {(o.status === 'CANCELED' || o.status === 'REJECTED') && o.legs && (
+                                <button 
+                                  onClick={() => {
+                                    const rec: any = {
+                                      symbol: o.symbol,
+                                      strategy: o.strategy,
+                                      side: o.side,
+                                      thesis: "Retrying previous order",
+                                      expiration: o.legs && o.legs[0] ? parseOCC(o.legs[0].symbol)?.expiration || "" : "",
+                                      target_entry: `$${(o.entry_price || 0).toFixed(2)}`,
+                                      pop: "N/A",
+                                      risk_reward: "N/A",
+                                      confidence: "100",
+                                      diagram_data: {
+                                        underlying_price: o.underlying_price || 0,
+                                        strategy_type: o.strategy,
+                                        legs: o.legs || []
+                                      }
+                                    };
+                                    setRetryTrade(rec);
+                                  }}
+                                  className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                  title="Retry Order"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1181,6 +1278,65 @@ function App() {
         summary={analyzingNews?.summary || ''}
         portfolioPositions={portfolioSymbols}
       />
+      {/* Order Update Modal */}
+      {editingOrder && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
+           <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setEditingOrder(null)} />
+           <div className="relative w-full max-w-sm bg-gray-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden p-8 space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white tracking-tight">Update Limit Price</h3>
+                <button onClick={() => setEditingOrder(null)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">New Limit Price ($)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    value={newLimitPrice}
+                    onChange={(e) => setNewLimitPrice(e.target.value)}
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono focus:border-blue-500 outline-none transition-all"
+                    placeholder="0.00"
+                    autoFocus
+                  />
+                  <p className="text-[10px] text-gray-500 mt-2 italic text-center">
+                    Updating this will replace your existing order in the market.
+                  </p>
+                </div>
+                
+                <button 
+                  onClick={handleUpdateOrderPrice}
+                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                >
+                  Update Order
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {retryTrade && (
+        <TradeConfirmationModal
+          isOpen={!!retryTrade}
+          onClose={() => setRetryTrade(null)}
+          onConfirm={async (tradeData, qty) => {
+            const resp = await fetch('http://localhost:8000/trades', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                symbol: tradeData.symbol,
+                strategy: tradeData.strategy,
+                entry_price: parseFloat(tradeData.target_entry.replace('$', '')),
+                quantity: qty,
+                legs: tradeData.diagram_data.legs
+              })
+            });
+            return await resp.json();
+          }}
+          trade={retryTrade}
+        />
+      )}
     </div>
   );
 }

@@ -130,9 +130,14 @@ class TradeResponse(BaseModel):
     side: str = "buy"
     opened_at: datetime.datetime
     ai_rec: AIRecommendation = None
+    legs: List[StrategyLeg] = None
 
     class Config:
         from_attributes = True
+
+class TradeUpdate(BaseModel):
+    limit_price: float = None
+    quantity: int = None
 
 class ChatRequest(BaseModel):
     question: str
@@ -449,6 +454,28 @@ def _map_alpaca_order_to_trade_response(o: dict) -> TradeResponse:
     if status in ["NEW", "ACCEPTED"]:
         status = "PENDING"
 
+    # Map legs
+    legs = []
+    if o.get("legs"):
+        for l in o["legs"]:
+            # Parse symbol to get strike and type if possible
+            leg_sym = l.get("symbol", "")
+            strike = 0.0
+            l_type = "CALL"
+            # OCC format: SPY231215C00450000
+            match = re.search(r'([CP])(\d{8})$', leg_sym)
+            if match:
+                l_type = "CALL" if match.group(1) == "C" else "PUT"
+                strike = float(match.group(2)) / 1000.0
+
+            legs.append(StrategyLeg(
+                symbol=leg_sym,
+                strike=strike,
+                side=l.get("side", "buy").upper(),
+                type=l_type,
+                premium=float(o.get("limit_price") or 0.0) # Approx
+            ))
+
     return TradeResponse(
         id=o["id"],
         symbol=sym or "Unknown",
@@ -458,7 +485,8 @@ def _map_alpaca_order_to_trade_response(o: dict) -> TradeResponse:
         quantity=abs(int(float(o.get("filled_qty") or o.get("qty", 0)))),
         status=status,
         side=side,
-        opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
+        opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00')),
+        legs=legs if legs else None
     )
 
 @app.get("/trades", response_model=List[TradeResponse])
@@ -601,6 +629,16 @@ def delete_paper_trade(symbol_or_id: str):
     except Exception as e:
         # Log the full error but send the detail back to the frontend
         print(f"Delete trade error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.patch("/trades/{order_id}", response_model=TradeResponse)
+def patch_trade(order_id: str, update: TradeUpdate):
+    from alpaca_trading import replace_order
+    try:
+        order_data = replace_order(order_id, limit_price=update.limit_price, qty=update.quantity)
+        return _map_alpaca_order_to_trade_response(order_data)
+    except Exception as e:
+        print(f"Update trade error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/trades/{symbol_or_id}/close", response_model=dict)
