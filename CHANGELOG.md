@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- **Portfolio "Top Positions" Sorting**:
+    - **Interactive Column headers**: Added full sorting capabilities for the Portfolio table, allowing users to organize positions by Asset, Days to Expiry (DTE), Current Price, Quantity, Market Value, Total P/L, Status, and AI Action.
+    - **Visual Sort Indicators**: Integrated animated `ChevronUp` and `ChevronDown` icons to clearly denote active sorting states and hover potential.
+    - **Real-time Persistence**: Ensured the user's selected sort order is maintained during the 5-second automatic data refresh cycle, preventing disruptive UI jumps.
+
 - **Portfolio Payoff Chart Fixes**:
     - **Black-Scholes Guards**: Handled non-positive stock prices (`S <= 0`) to prevent `$NaN` in distributions by returning intrinsic values.
     - **Robust Underlying Price Logic**: Added proactive stock price fetching in the backend (`main.py`) for option positions and removed incorrect fallbacks to option premiums.

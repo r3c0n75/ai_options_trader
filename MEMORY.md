@@ -21,7 +21,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
     - **Enhanced Sorting & Viewing**: Implemented alphabetical (Symbol) and strategy-based sorting, alongside a new "Show All" toggle to expand the focused Top 5 opportunities list.
     - **API Limit Support**: Backend `generate_recommendations` now supports an optional `limit` parameter for more flexible frontend layouts.
-* **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations, now extended to include Symbol and Strategy fields.
+* **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations, now extended to include Symbol and Strategy fields. **Portfolio "Top Positions" table** now supports full column sorting across all key metrics.
 * **Macro Scanner (ETFScanner)**:
     - **Asset Sorting**: Integrated Symbol and Change % sorting to allow for quick scanning of top-performing or specific assets.
 * **News Panel / Catalysts**: Real-time feed of financial news pulled via Alpaca or yfinance.
@@ -50,6 +50,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Precision Strategy Detection**: Enhanced the grouping logic to specifically identify and label common 2-leg strategies including **Put Credit Spreads**, **Bull Call Debit Spreads**, **Bear Put Debit Spreads**, and **Call Credit Spreads**.
     - **Strategy-Specific Payoff Scaling**: Refined the `StrategyPayoff` logic to ignore high stock cost bases in the zoom range, focusing exclusively on option strikes and premium breakevens for a consistent analytical view across both recommendations and portfolio positions.
     - **Short Leg Detection**: Grouping logic explicitly checks the `side` property to account for absolute-value quantity normalization in the Alpaca API, ensuring correct Payoff Diagram orientation.
+    - **Advanced Portfolio Sorting**: Implemented interactive column headers for the **Top Positions** table. Supports sorting by Asset, DTE, Price, Qty, Market Value, Total P/L, Status, and AI Action. The sort state is robust against automatic data refreshes.
 * **Symbol Analysis & AI Integration**:
     - **Context-Aware AI Buttons**: Trade suggestions now feature individualized "AI Insight" buttons that link directly to symbol-specific analysis modals.
     - **Visual Continuity**: The "AI Insight" badge is mirrored inside the Symbol Analysis modal for a cohesive premium experience.
@@ -109,6 +110,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Underlying Price Derivation**: Alpaca often omits the stock price for individual option positions. Derbying this by looking up the stock ticker from the OCC symbol and matching it against open equity positions (or a price map) is necessary to ensure portfolio charts are centered at the current spot price rather than the option premium. Proactive fetching in the backend is the safest approach.
 * **Finite P/L Filtering**: Even with math guards, rendering libraries can produce `NaN` if data points are malformed. Using `Number.isFinite()` filtering on all dataset calculations (min/max/average) ensures the UI remains stable and doesn't display `$NaN`.
 * **Theoretical Curve Anchoring**: Theoretical models often differ from reality due to IV shifts or entry timing. Shifting the curve with a `pnlOffset` calculated at the current price ensures the chart passes through the actual realized P/L, providing a much cleaner UX.
+* **Portfolio Sorting Persistence**: When implementing sorting in a real-time table, the sort logic must be applied *after* each data refresh (or wrapped in a reactive hook like `useMemo`) to prevent the dashboard from jumping or losing the user's preferred view during auto-sync events.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

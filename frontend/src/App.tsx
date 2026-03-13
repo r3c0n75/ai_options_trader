@@ -21,7 +21,9 @@ import {
   AlertCircle,
   AlertTriangle,
   Info,
-  Clock
+  Clock,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { Omnisearch } from './components/Omnisearch';
 import { SymbolAnalysis } from './components/SymbolAnalysis';
@@ -94,6 +96,15 @@ function App() {
   const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
   const [selectedActionRec, setSelectedActionRec] = useState<{ trade: any, rec: AIRecommendation } | null>(null);
   const [analyzingNews, setAnalyzingNews] = useState<any | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'market_value', direction: 'desc' });
+
+  const handleRequestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const portfolioSymbols = useMemo(() => {
     const symbols = new Set<string>();
@@ -350,7 +361,64 @@ function App() {
       });
     });
     
-    return groups.sort((a,b) => (b.market_value || 0) - (a.market_value || 0));
+    
+    let sortedGroups = [...groups];
+    if (sortConfig !== null) {
+      sortedGroups.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortConfig.key) {
+          case 'symbol':
+            aValue = a.symbol;
+            bValue = b.symbol;
+            break;
+          case 'dte':
+            aValue = a.dte ?? 9999;
+            bValue = b.dte ?? 9999;
+            break;
+          case 'price':
+            aValue = a.isSpread ? (a.legDetails[0].current_price || 0) : (a.current_price || 0);
+            bValue = b.isSpread ? (b.legDetails[0].current_price || 0) : (b.current_price || 0);
+            break;
+          case 'quantity':
+            aValue = typeof a.quantity === 'string' ? parseFloat(a.quantity) : a.quantity;
+            bValue = typeof b.quantity === 'string' ? parseFloat(b.quantity) : b.quantity;
+            break;
+          case 'market_value':
+            aValue = a.market_value || 0;
+            bValue = b.market_value || 0;
+            break;
+          case 'unrealized_pl':
+            aValue = a.unrealized_pl || 0;
+            bValue = b.unrealized_pl || 0;
+            break;
+          case 'status':
+            aValue = a.status;
+            bValue = b.status;
+            break;
+          case 'ai_action':
+            aValue = a.ai_rec?.action || '';
+            bValue = b.ai_rec?.action || '';
+            break;
+          default:
+            aValue = a[sortConfig.key];
+            bValue = b[sortConfig.key];
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    } else {
+      sortedGroups.sort((a,b) => (b.market_value || 0) - (a.market_value || 0));
+    }
+    
+    return sortedGroups;
   };
 
   const getPortfolioLabels = () => {
@@ -730,14 +798,30 @@ function App() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-gray-800 bg-black/20 text-gray-500 text-xs font-bold uppercase tracking-widest">
-                      <th className="py-4 px-6 font-semibold">Asset</th>
-                      <th className="py-4 px-6 font-semibold">Exp / DTE</th>
-                      <th className="py-4 px-6 font-semibold">Price</th>
-                      <th className="py-4 px-6 font-semibold">Qty</th>
-                      <th className="py-4 px-6 font-semibold">Market Value</th>
-                      <th className="py-4 px-6 font-semibold">Total P/L ($)</th>
-                      <th className="py-4 px-6 font-semibold">Status</th>
-                      <th className="py-4 px-6 font-semibold">AI Action</th>
+                      {[
+                        { label: 'Asset', key: 'symbol' },
+                        { label: 'Exp / DTE', key: 'dte' },
+                        { label: 'Price', key: 'price' },
+                        { label: 'Qty', key: 'quantity' },
+                        { label: 'Market Value', key: 'market_value' },
+                        { label: 'Total P/L ($)', key: 'unrealized_pl' },
+                        { label: 'Status', key: 'status' },
+                        { label: 'AI Action', key: 'ai_action' }
+                      ].map((col) => (
+                        <th 
+                          key={col.key} 
+                          className="py-4 px-6 font-semibold cursor-pointer hover:text-white transition-colors group"
+                          onClick={() => handleRequestSort(col.key)}
+                        >
+                          <div className="flex items-center gap-1">
+                            {col.label}
+                            <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronUp className={`w-2.5 h-2.5 -mb-1 ${sortConfig?.key === col.key && sortConfig.direction === 'asc' ? 'text-blue-400 opacity-100' : 'opacity-40'}`} />
+                              <ChevronDown className={`w-2.5 h-2.5 ${sortConfig?.key === col.key && sortConfig.direction === 'desc' ? 'text-blue-400 opacity-100' : 'opacity-40'}`} />
+                            </div>
+                          </div>
+                        </th>
+                      ))}
                       <th className="py-4 px-6 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
