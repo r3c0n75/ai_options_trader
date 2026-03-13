@@ -135,3 +135,10 @@ def replace_order(order_id: str, limit_price: float = None, qty: int = None):
     if response.status_code not in (200, 201):
         raise Exception(f"Failed to update order: {response.text}")
     return response.json()
+
+def close_all_positions():
+    url = f"{PAPER_API_URL}/positions?cancel_orders=true"
+    response = httpx.delete(url, headers=get_headers())
+    if response.status_code not in (200, 201, 204, 207):
+        raise Exception(f"Failed to close all positions: {response.text}")
+    return {}

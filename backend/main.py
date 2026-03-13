@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 import models
 from database import engine, get_db
@@ -113,7 +113,7 @@ class TradeCreate(BaseModel):
     side: str = "buy"
     entry_price: float
     quantity: int
-    legs: List[StrategyLeg] = None
+    legs: Optional[List[StrategyLeg]] = None
 
 class TradeResponse(BaseModel):
     id: str
@@ -129,8 +129,8 @@ class TradeResponse(BaseModel):
     status: str
     side: str = "buy"
     opened_at: datetime.datetime
-    ai_rec: AIRecommendation = None
-    legs: List[StrategyLeg] = None
+    ai_rec: Optional[AIRecommendation] = None
+    legs: Optional[List[StrategyLeg]] = None
 
     class Config:
         from_attributes = True
@@ -348,13 +348,23 @@ def execute_paper_trade(trade: TradeCreate):
             # Calculate limit price for the spread (Positive=Debit, Negative=Credit)
             limit_price = 0
             has_options = False
-            for leg in trade.legs:
-                if leg.type.upper() in ["CALL", "PUT"]:
-                    has_options = True
-                    if leg.side.upper() in ["BUY", "LONG"]:
-                        limit_price += leg.premium
-                    else:
-                        limit_price -= leg.premium
+            
+            # If user provided a specific entry price (limit price), use it.
+            # Otherwise calculate from individual leg premiums.
+            if trade.entry_price is not None and trade.entry_price != 0:
+                limit_price = trade.entry_price
+                has_options = True
+                # Heuristic: If it's a credit spread and price is positive, negate it for Alpaca
+                if "credit" in trade.strategy.lower() and limit_price > 0:
+                    limit_price = -limit_price
+            else:
+                for leg in trade.legs:
+                    if leg.type.upper() in ["CALL", "PUT"]:
+                        has_options = True
+                        if leg.side.upper() in ["BUY", "LONG"]:
+                            limit_price += leg.premium
+                        else:
+                            limit_price -= leg.premium
             
             # Final attempt to submit with error handling for "uncovered" race condition
             order_data = {}
@@ -476,13 +486,15 @@ def _map_alpaca_order_to_trade_response(o: dict) -> TradeResponse:
                 premium=float(o.get("limit_price") or 0.0) # Approx
             ))
 
+    price = float(o.get("filled_avg_price") or o.get("limit_price") or 0.0)
+
     return TradeResponse(
         id=o["id"],
         symbol=sym or "Unknown",
         strategy=strategy_name,
-        entry_price=float(o.get("filled_avg_price") or 0.0),
-        current_price=float(o.get("filled_avg_price") or 0.0),
-        quantity=abs(int(float(o.get("filled_qty") or o.get("qty", 0)))),
+        entry_price=price,
+        current_price=price,
+        quantity=abs(int(float(o.get("qty") or o.get("filled_qty") or 1))),
         status=status,
         side=side,
         opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00')),

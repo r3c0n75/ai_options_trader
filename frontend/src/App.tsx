@@ -95,7 +95,6 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
-  const [newLimitPrice, setNewLimitPrice] = useState<string>("");
   const [searchedSymbol, setSearchedSymbol] = useState<string | null>(null);
   const [portfolioPeriod, setPortfolioPeriod] = useState<string>('1D');
   const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
@@ -548,24 +547,30 @@ function App() {
     }
   };
 
-  const handleUpdateOrderPrice = async () => {
-    if (!editingOrder || !newLimitPrice) return;
+  const handleUpdateOrderPrice = async (orderId: string, quantity: number, limitPrice: number) => {
     try {
-      const response = await fetch(`http://localhost:8000/trades/${editingOrder.id}`, {
+      const resp = await fetch(`http://localhost:8000/trades/${orderId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit_price: parseFloat(newLimitPrice) })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          limit_price: limitPrice,
+          quantity: quantity
+        })
       });
-      if (response.ok) {
-        setEditingOrder(null);
-        setNewLimitPrice("");
-        fetchData();
-      } else {
-        const data = await response.json();
-        setError(data.detail || 'Failed to update order');
+      
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        throw new Error(errorData.detail || 'Failed to update order');
       }
+      
+      setEditingOrder(null);
+      fetchData();
+      return await resp.json();
     } catch (err: any) {
-      setError(err.message || 'Network error');
+      console.error(err);
+      throw err;
     }
   };
 
@@ -1065,16 +1070,19 @@ function App() {
                   <tbody className="divide-y divide-gray-800/50">
                     {recentOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-gray-600 italic">No recent order history</td>
+                        <td colSpan={8} className="py-8 text-center text-gray-600 italic">No recent order history</td>
                       </tr>
                     ) : (
                       recentOrders.map((o) => (
                         <tr key={o.id} className="hover:bg-gray-800/20 transition-colors">
                           <td className="py-4 px-6 text-gray-200 font-bold">{o.symbol}</td>
                           <td className="py-4 px-6 text-xs text-gray-400 font-bold uppercase">{o.strategy}</td>
-                          <td className={`py-4 px-6 text-xs font-bold uppercase ${o.side === 'buy' ? 'text-emerald-400' : 'text-orange-400'}`}>{o.side}</td>
+                          <td className={`py-4 px-6 text-xs font-bold uppercase ${o.side === 'buy' || o.side === 'long' ? 'text-emerald-400' : 'text-orange-400'}`}>{o.side}</td>
                           <td className="py-4 px-6 font-mono text-gray-400 text-sm">{o.quantity}</td>
-                          <td className="py-4 px-6 font-mono text-gray-400 text-sm">$ {o.entry_price.toFixed(2)}</td>
+                          <td className={`py-4 px-6 font-mono text-sm font-bold ${o.entry_price < 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            $ {Math.abs(o.entry_price || 0).toFixed(2)}
+                            {o.entry_price < 0 && <span className="ml-1 text-[8px] opacity-70 uppercase">Credit</span>}
+                          </td>
                           <td className="py-4 px-6">
                             <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold tracking-widest ${
                               o.status === 'FILLED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 
@@ -1090,10 +1098,7 @@ function App() {
                               {o.status === 'PENDING' && (
                                 <>
                                   <button 
-                                    onClick={() => {
-                                      setEditingOrder(o);
-                                      setNewLimitPrice(o.entry_price ? o.entry_price.toString() : "");
-                                    }}
+                                    onClick={() => setEditingOrder(o)}
                                     className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                                     title="Update Price"
                                   >
@@ -1278,63 +1283,54 @@ function App() {
         summary={analyzingNews?.summary || ''}
         portfolioPositions={portfolioSymbols}
       />
-      {/* Order Update Modal */}
-      {editingOrder && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
-           <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setEditingOrder(null)} />
-           <div className="relative w-full max-w-sm bg-gray-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden p-8 space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white tracking-tight">Update Limit Price</h3>
-                <button onClick={() => setEditingOrder(null)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">New Limit Price ($)</label>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    value={newLimitPrice}
-                    onChange={(e) => setNewLimitPrice(e.target.value)}
-                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-mono focus:border-blue-500 outline-none transition-all"
-                    placeholder="0.00"
-                    autoFocus
-                  />
-                  <p className="text-[10px] text-gray-500 mt-2 italic text-center">
-                    Updating this will replace your existing order in the market.
-                  </p>
-                </div>
-                
-                <button 
-                  onClick={handleUpdateOrderPrice}
-                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
-                >
-                  Update Order
-                </button>
-              </div>
-           </div>
-        </div>
-      )}
-
       {retryTrade && (
         <TradeConfirmationModal
           isOpen={!!retryTrade}
           onClose={() => setRetryTrade(null)}
-          onConfirm={async (tradeData, qty) => {
+          onConfirm={async (tradeData, qty, limitPrice) => {
             const resp = await fetch('http://localhost:8000/trades', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 symbol: tradeData.symbol,
                 strategy: tradeData.strategy,
-                entry_price: parseFloat(tradeData.target_entry.replace('$', '')),
+                entry_price: limitPrice ?? (parseFloat(tradeData.target_entry.replace('$', '')) || 0),
                 quantity: qty,
                 legs: tradeData.diagram_data.legs
               })
             });
+            if (!resp.ok) throw new Error((await resp.json()).detail || 'Failed to retry order');
             return await resp.json();
           }}
           trade={retryTrade}
+        />
+      )}
+
+      {editingOrder && (
+        <TradeConfirmationModal
+          isOpen={!!editingOrder}
+          mode="update"
+          onClose={() => setEditingOrder(null)}
+          onConfirm={async (_tradeData, qty, limitPrice) => {
+            return await handleUpdateOrderPrice(editingOrder.id, qty, limitPrice || 0);
+          }}
+          trade={{
+            symbol: editingOrder.symbol,
+            strategy: editingOrder.strategy,
+            side: editingOrder.side,
+            thesis: "Updating existing order price/quantity",
+            expiration: editingOrder.legs && editingOrder.legs[0] ? parseOCC(editingOrder.legs[0].symbol)?.expiration || "" : "",
+            target_entry: `$${(editingOrder.entry_price || 0).toFixed(2)}`,
+            pop: "N/A",
+            risk_reward: "N/A",
+            confidence: "100",
+            quantity: editingOrder.quantity,
+            diagram_data: {
+              underlying_price: editingOrder.underlying_price || 0,
+              strategy_type: editingOrder.strategy,
+              legs: editingOrder.legs || []
+            }
+          } as any}
         />
       )}
     </div>

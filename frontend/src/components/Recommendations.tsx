@@ -103,7 +103,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
     setIsModalOpen(true);
   };
 
-  const executePaperTrade = async (rec: Recommendation, quantity: number) => {
+  const executePaperTrade = async (rec: Recommendation, quantity: number, limitPrice?: number) => {
     try {
       const res = await fetch('http://localhost:8000/trades', {
         method: 'POST',
@@ -114,7 +114,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
           symbol: rec.symbol,
           strategy: rec.strategy,
           side: rec.side.toLowerCase(),
-          entry_price: 0,
+          entry_price: limitPrice ?? (parseFloat(rec.target_entry.replace('$', '')) || 0),
           quantity: quantity,
           legs: rec.diagram_data.legs
         })
