@@ -33,12 +33,22 @@ export const NewsFeed: React.FC<NewsFeedProps> = ({ portfolioSymbols, onAnalyze 
       });
   }, []);
 
-  const isPortfolioMatch = (itemSymbols: string[]) => {
-    return itemSymbols && itemSymbols.some(s => portfolioSymbols.includes(s));
+  const isPortfolioMatch = (item: NewsItem) => {
+    // 1. Check API-provided symbols
+    if (item.symbols && item.symbols.some(s => portfolioSymbols.includes(s))) return true;
+
+    // 2. Fallback: Scan text for portfolio tickers
+    const textToScan = `${item.headline} ${item.summary}`.toUpperCase();
+    return portfolioSymbols.some(sym => {
+      if (!sym || !sym.trim()) return false;
+      // Use regex to find whole word matches only (e.g., avoid matching 'C' in 'Company')
+      const regex = new RegExp(`\\b${sym}\\b`);
+      return regex.test(textToScan);
+    });
   };
 
   const filteredNews = filterPortfolio 
-    ? news.filter(item => isPortfolioMatch(item.symbols))
+    ? news.filter(item => isPortfolioMatch(item))
     : news;
 
   if (loading) {
@@ -86,7 +96,16 @@ export const NewsFeed: React.FC<NewsFeedProps> = ({ portfolioSymbols, onAnalyze 
       ) : (
         <div className="grid gap-4">
           {filteredNews.map((item, idx) => {
-            const hasMatch = isPortfolioMatch(item.symbols);
+            const hasMatch = isPortfolioMatch(item);
+            
+            // Extract display symbols: Original tags + any found in text that we own
+            const textToScan = `${item.headline} ${item.summary}`.toUpperCase();
+            const additionalMatches = portfolioSymbols.filter(sym => {
+              const regex = new RegExp(`\\b${sym}\\b`);
+              return regex.test(textToScan) && !(item.symbols || []).includes(sym);
+            });
+            const displaySymbols = Array.from(new Set([...(item.symbols || []), ...additionalMatches]));
+
             return (
               <div 
                 key={idx} 
@@ -102,7 +121,7 @@ export const NewsFeed: React.FC<NewsFeedProps> = ({ portfolioSymbols, onAnalyze 
                 <div className="flex flex-col md:flex-row gap-6 justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3 flex-wrap">
-                      {item.symbols && item.symbols.map(sym => {
+                      {displaySymbols.map(sym => {
                         const isOwned = portfolioSymbols.includes(sym);
                         return (
                           <span 

@@ -96,11 +96,26 @@ function App() {
   const [analyzingNews, setAnalyzingNews] = useState<any | null>(null);
 
   const portfolioSymbols = useMemo(() => {
-    return Array.from(new Set(trades.map(t => {
+    const symbols = new Set<string>();
+    
+    // 1. Existing positions
+    trades.forEach(t => {
+      if (!t.symbol) return;
       const occ = parseOCC(t.symbol);
-      return occ ? occ.underlying : t.symbol;
-    })));
-  }, [trades]);
+      const sym = (occ ? occ.underlying : t.symbol).trim();
+      if (sym) symbols.add(sym);
+    });
+
+    // 2. Recent/Pending orders
+    recentOrders.forEach(o => {
+      if (!o.symbol) return;
+      const occ = parseOCC(o.symbol);
+      const sym = (occ ? occ.underlying : o.symbol).trim();
+      if (sym) symbols.add(sym);
+    });
+
+    return Array.from(symbols);
+  }, [trades, recentOrders]);
     const groupOpenTrades = () => {
     const openTrades = trades.filter(t => t.status === 'OPEN');
     const groups: any[] = [];
