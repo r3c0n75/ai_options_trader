@@ -1321,6 +1321,7 @@ function App() {
             thesis: "Updating existing order price/quantity",
             expiration: editingOrder.legs && editingOrder.legs[0] ? parseOCC(editingOrder.legs[0].symbol)?.expiration || "" : "",
             target_entry: `$${(editingOrder.entry_price || 0).toFixed(2)}`,
+            entry_price: editingOrder.entry_price,
             pop: "N/A",
             risk_reward: "N/A",
             confidence: "100",

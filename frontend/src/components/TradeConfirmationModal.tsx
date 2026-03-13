@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { X, ArrowRight, Zap, Shield, HelpCircle, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { X, ArrowRight, Zap, HelpCircle, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 interface StrategyLeg {
   strike: number;
@@ -63,16 +63,21 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
       if (initialTradeRef.current !== tradeId) {
         setQuantity(typeof trade.quantity === 'number' && trade.quantity > 0 ? trade.quantity : 1);
         
-        // Extract numeric limit price from target_entry string (e.g "$1.20 Credit") or use entry_price
+        // Determine the limit price
         let price = 0;
-        if (trade.target_entry) {
+        
+        // 1. Try explicit numeric entry_price first (preferred)
+        // 2. Fallback to target_entry string parsing
+        if (typeof trade.entry_price === 'number') {
+           price = trade.entry_price;
+        } else if (trade.target_entry) {
           // Strip non-numbers but keep decimals and minus sign
-          const match = trade.target_entry.match(/[-+]?[0-9]*\.?[0-9]+/);
+          // We pre-filter out anything followed by "Strike" to avoid grabbing the wrong number
+          const cleanEntry = trade.target_entry.replace(/Strike\s+\d+(\.\d+)?/gi, '');
+          const match = cleanEntry.match(/[-+]?[0-9]*\.?[0-9]+/);
           if (match) {
             price = parseFloat(match[0]);
           }
-        } else if ((trade as any).entry_price) {
-          price = (trade as any).entry_price;
         }
         
         // Alpaca uses negative for credit, but UI shows positive for user convenience
