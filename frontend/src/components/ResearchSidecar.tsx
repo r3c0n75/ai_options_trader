@@ -84,7 +84,7 @@ export const ResearchSidecar: React.FC<ResearchSidecarProps> = ({ symbol, contex
       <div className="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between bg-gray-900/20 backdrop-blur-sm z-20">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-blue-500" />
-          <h3 className="font-bold text-white text-[13px] tracking-tight">Deep Research: {symbol}</h3>
+          <h3 className="font-bold text-white text-[13px] tracking-tight">AI Chat</h3>
         </div>
         
         <div className="relative">

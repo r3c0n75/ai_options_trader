@@ -65,6 +65,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Strategy-Aware Health Dashboard**: Implemented a core intelligent layer that evaluates position health against current macro catalysts (Risk Score, Mood).
     - **Contextual Confirmation**: Every AI action (Hold, Close, Roll) is backed by a dedicated confirmation flow explaining the rationale and risk-assessment points.
     - **Duration-Calibrated Heuristics**: Recommendations automatically adjust their risk tolerance based on DTE extracted from OCC symbols, prioritizing Gamma-risk management for short-dated options.
+* **UI & UX Polish**:
+    - **AI Chat Branding**: Renamed "Deep Research" sidecar to **"AI Chat"** to align with conversational expectations.
 - **Optimized Data Refresh Rates**: 
     - **Market Health**: Throttled to **10-minute intervals** to reflect the slow-moving nature of macro volatility and reduce LLM overhead.
     - **Portfolio & Scanner**: Maintains high-frequency (5s) updates for real-time price action.

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - **Market Health Refresh Interval**: Optimized the "Market Health" analysis refresh rate to **10 minutes** (from 10 seconds). This reduces background API overhead and prevents excessive re-analysis noise for long-term macro indicators.
+- **UI Refinement**: Renamed "Deep Research: <symbol>" to **"AI Chat"** in the Research Sidecar for a cleaner, more intuitive chat interface.
 
 ### Added
 - **"AI Action" Portfolio Column**:
