@@ -100,6 +100,11 @@ class PortfolioHistoryResponse(BaseModel):
     profit_loss_pct: List[float]
     base_value: float
 
+class NewsAnalysisRequest(BaseModel):
+    headline: str
+    summary: str
+    positions: List[str]
+
 class TradeCreate(BaseModel):
     symbol: str
     strategy: str
@@ -230,6 +235,15 @@ def get_etf_scanner_data(symbols: str = None):
 def get_news_feed():
     from data_fetcher import get_financial_news
     return get_financial_news(limit=10)
+
+@app.post("/news/analyze")
+async def analyze_news(req: NewsAnalysisRequest):
+    from ai_engine import analyze_news_impact
+    try:
+        impact = analyze_news_impact(req.headline, req.summary, req.positions)
+        return impact
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/stocks/{symbol}/bars")
 def get_stock_historical_bars(symbol: str, period: str = "3M"):

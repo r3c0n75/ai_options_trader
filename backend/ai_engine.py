@@ -200,3 +200,54 @@ Return ONLY valid JSON with keys: risk_score (int), market_mood (Risk-On, Risk-O
     except Exception as e:
         print(f"DEBUG: get_macro_sentiment failed: {e}")
         return {"risk_score": 50, "market_mood": "Neutral", "global_thesis": "Macro pulse calculation failed."}
+
+def analyze_news_impact(headline: str, summary: str, portfolio_context: list, model_name: str = None) -> dict:
+    """Analyzes a news item against the user's current portfolio positions."""
+    model = _get_model(model_name)
+    if not model:
+        return {
+            "impact_score": 5, 
+            "analysis": "AI key missing.", 
+            "portfolio_relevance": "N/A", 
+            "recommended_action": "HOLD",
+            "sentiment": "Neutral"
+        }
+
+    prompt = f"""News Analysis & Portfolio Impact:
+Headline: {headline}
+Summary: {summary}
+Current Portfolio Positions: {portfolio_context}
+
+Task: Analyze how this news affects the current portfolio. 
+Consider:
+1. Macro correlation (sector impact).
+2. Direct asset impact (is the ticker in the portfolio?).
+3. Options risk (gamma, theta, or directional delta).
+
+Return ONLY valid JSON with keys:
+- impact_score (int 1-10, where 10 is critical/urgent)
+- analysis (2-3 expert sentences)
+- portfolio_relevance (Detailed mention of which tickers are most affected and why)
+- recommended_action (HOLD, CLOSE, ROLL, or HEDGE)
+- sentiment (Bullish, Bearish, or Neutral)
+"""
+
+    try:
+        response = _generate_with_retry(model, prompt)
+        text = response.text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+        
+        import json
+        return json.loads(text)
+    except Exception as e:
+        print(f"DEBUG: analyze_news_impact failed: {e}")
+        return {
+            "impact_score": 5,
+            "analysis": "Analysis temporarily unavailable due to AI service limits.",
+            "portfolio_relevance": "Could not determine precise impact at this time.",
+            "recommended_action": "HOLD",
+            "sentiment": "Neutral"
+        }

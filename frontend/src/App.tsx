@@ -1,8 +1,9 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { MarketHealth } from './components/MarketHealth';
 import { Recommendations } from './components/Recommendations';
 import { ETFScanner } from './components/ETFScanner';
 import { NewsFeed } from './components/NewsFeed';
+import { NewsAnalysisModal } from './components/NewsAnalysisModal';
 import { SymbolChart } from './components/SymbolChart';
 import { StrategyPayoff } from './components/StrategyPayoff';
 import { 
@@ -66,6 +67,17 @@ interface PortfolioHistory {
   base_value: number;
 }
 
+const parseOCC = (symbol: string) => {
+  const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
+  if (!match) return null;
+  return {
+    underlying: match[1],
+    expiration: match[2],
+    type: match[3] === 'C' ? 'CALL' : 'PUT',
+    strike: parseInt(match[4], 10) / 1000
+  };
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'news' | 'portfolio'>('dashboard');
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -81,17 +93,14 @@ function App() {
   const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
   const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
   const [selectedActionRec, setSelectedActionRec] = useState<{ trade: any, rec: AIRecommendation } | null>(null);
+  const [analyzingNews, setAnalyzingNews] = useState<any | null>(null);
 
-  const parseOCC = (symbol: string) => {
-    const match = symbol.match(/^([a-zA-Z]{1,6})(\d{6})([CP])(\d{8})$/);
-    if (!match) return null;
-    return {
-      underlying: match[1],
-      expiration: match[2],
-      type: match[3] === 'C' ? 'CALL' : 'PUT',
-      strike: parseInt(match[4], 10) / 1000
-    };
-  };
+  const portfolioSymbols = useMemo(() => {
+    return Array.from(new Set(trades.map(t => {
+      const occ = parseOCC(t.symbol);
+      return occ ? occ.underlying : t.symbol;
+    })));
+  }, [trades]);
     const groupOpenTrades = () => {
     const openTrades = trades.filter(t => t.status === 'OPEN');
     const groups: any[] = [];
@@ -517,7 +526,10 @@ function App() {
 
         {activeTab === 'news' && (
           <main className="animate-in fade-in slide-in-from-bottom-4">
-            <NewsFeed />
+            <NewsFeed 
+              portfolioSymbols={portfolioSymbols}
+              onAnalyze={(item) => setAnalyzingNews(item)}
+            />
           </main>
         )}
 
@@ -1049,6 +1061,14 @@ function App() {
           </div>
         </div>
       )}
+
+      <NewsAnalysisModal
+        isOpen={!!analyzingNews}
+        onClose={() => setAnalyzingNews(null)}
+        headline={analyzingNews?.headline || ''}
+        summary={analyzingNews?.summary || ''}
+        portfolioPositions={portfolioSymbols}
+      />
     </div>
   );
 }

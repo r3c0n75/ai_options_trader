@@ -7,9 +7,13 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Market Health Refresh Interval**: Optimized the "Market Health" analysis refresh rate to **10 minutes** (from 10 seconds). This reduces background API overhead and prevents excessive re-analysis noise for long-term macro indicators.
 - **UI Refinement**: Renamed "Deep Research: <symbol>" to **"AI Chat"** in the Research Sidecar for a cleaner, more intuitive chat interface.
+- **Analysis Stability**: Optimized `NewsAnalysisModal` trigger logic and memoized portfolio context to prevent flickering during background refreshes.
 
 ### Added
-- **"AI Action" Portfolio Column**:
+- **Sentient AI News Insights**: 
+    - **Asset Highlighting**: Automatically flags portfolio assets in news items with sentient amber-gold highlights and target icons.
+    - **Portfolio Filtering**: Added a persistent toggle to filter the news feed strictly for relevant holdings.
+    - **Deep Impact Analysis**: Created a high-fidelity modal providing impact scores, AI reasoning, and recommended actions (Hold, Hedge, Close) for any news item.
     - Integrated a proactive "AI Action" column in the Portfolio table, providing real-time **Hold**, **Close**, and **Roll** suggestions.
     - Implemented interactive **Action Badges** that display concise rationales on hover.
     - Added a **Confirmation Modal** for AI actions, providing users with a deep-dive rationale, key risk considerations, and a direct execution path.
