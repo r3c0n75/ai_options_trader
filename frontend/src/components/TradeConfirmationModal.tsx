@@ -31,12 +31,13 @@ interface TradeConfirmationModalProps {
   isOpen: boolean;
   trade: Recommendation | null;
   onClose: () => void;
-  onConfirm: (trade: Recommendation, quantity: number) => Promise<void>;
+  onConfirm: (trade: Recommendation, quantity: number) => Promise<any>;
 }
 
 export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({ isOpen, trade, onClose, onConfirm }) => {
   const [quantity, setQuantity] = useState<number>(1);
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [orderStatus, setOrderStatus] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   
   if (!isOpen || !trade) return null;
@@ -54,7 +55,8 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({ 
     if (quantity > 0) {
       setStatus('processing');
       try {
-        await onConfirm(trade, quantity);
+        const result = await onConfirm(trade, quantity);
+        setOrderStatus(result?.status || 'ACCEPTED');
         setStatus('success');
       } catch (err: any) {
         setStatus('error');
@@ -64,12 +66,8 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({ 
   };
 
   const handleClose = () => {
-    if (status === 'success') {
-      // Logic handled by caller or parent? 
-      // Actually, let's pass a specialized callback or just close and let parent handle.
-      // Better: trigger onClose, then parent decides.
-    }
     setStatus('idle');
+    setOrderStatus('');
     setErrorMessage('');
     onClose();
   };
@@ -88,7 +86,9 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({ 
             </div>
             <div>
               <h2 className="text-xl font-black text-white tracking-tight">
-                {status === 'success' ? 'Order Successful' : status === 'error' ? 'Order Failed' : 'Confirm Trade'}
+                {status === 'success' 
+                  ? (orderStatus === 'FILLED' ? 'Order Executed' : 'Order Working') 
+                  : status === 'error' ? 'Order Failed' : 'Confirm Trade'}
               </h2>
               <p className="text-xs text-gray-500 font-medium uppercase tracking-widest mt-0.5">{trade.strategy}</p>
             </div>
@@ -195,13 +195,13 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({ 
             </div>
           )}
 
-          {status === 'success' && (
+          {status === 'success' && orderStatus === 'FILLED' && (
             <div className="flex flex-col items-center justify-center py-8 space-y-6">
               <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 animate-in zoom-in duration-500">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400" />
               </div>
               <div className="text-center">
-                <h3 className="text-xl font-bold text-white">Order Confirmed</h3>
+                <h3 className="text-xl font-bold text-white">Order Filled</h3>
                 <p className="text-sm text-gray-400 mt-2">
                   Successfully executed {quantity}x {trade.symbol} {trade.strategy}.
                 </p>
@@ -210,6 +210,32 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({ 
               <button 
                 onClick={handleClose}
                 className="w-full px-4 py-3.5 rounded-xl bg-gray-800 text-white font-bold hover:bg-gray-700 transition-all border border-gray-700"
+              >
+                Done
+              </button>
+            </div>
+          )}
+
+          {status === 'success' && orderStatus !== 'FILLED' && (
+            <div className="flex flex-col items-center justify-center py-8 space-y-6">
+               <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20 animate-in zoom-in duration-500">
+                <div className="relative">
+                  <div className="w-10 h-10 border-2 border-blue-400/20 border-t-blue-400 rounded-full animate-spin" />
+                  <HelpCircle className="w-5 h-5 text-blue-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-white">Order Working</h3>
+                <p className="text-sm text-gray-400 mt-2">
+                  Your limit order for {quantity}x {trade.symbol} has been submitted.
+                </p>
+                <p className="text-xs text-blue-400/70 mt-3 font-bold px-6 leading-relaxed">
+                  The order is currently <b>Pending</b> in the market. It will fill once the limit price is reached.
+                </p>
+              </div>
+              <button 
+                onClick={handleClose}
+                className="w-full px-4 py-3.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/25"
               >
                 Done
               </button>

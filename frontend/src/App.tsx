@@ -210,13 +210,15 @@ function App() {
                   strike: stock.entry_price,
                   side: 'BUY',
                   type: 'STOCK',
-                  premium: stock.entry_price
+                  premium: Math.abs(stock.entry_price || stock.current_price || 0),
+                  dte: matchingShortCall.dte,
+                  iv: 25 // Default IV for now
                 },
                 {
                   strike: matchingShortCall.occ.strike,
                   side: 'SELL',
                   type: 'CALL',
-                  premium: matchingShortCall.entry_price,
+                  premium: Math.abs(matchingShortCall.entry_price || matchingShortCall.current_price || 0),
                   dte: matchingShortCall.dte,
                   iv: 25 // Default IV for now
                 }
@@ -248,7 +250,7 @@ function App() {
               strike: stock.entry_price || stock.current_price,
               side: (stock.side?.toLowerCase() === 'short' || stock.side?.toLowerCase() === 'sell') ? 'SELL' : 'BUY',
               type: 'STOCK',
-              premium: stock.entry_price || stock.current_price
+              premium: Math.abs(stock.entry_price || stock.current_price || 0)
             }]
           },
           ai_rec: stock.ai_rec
@@ -325,7 +327,7 @@ function App() {
         strike: opt.occ.strike,
         side: (opt.side?.toLowerCase() === 'short' || opt.quantity < 0) ? ('SELL' as const) : ('BUY' as const),
         type: opt.occ.type as ('CALL' | 'PUT'),
-        premium: opt.entry_price || Math.abs(opt.current_price),
+        premium: Math.abs(opt.entry_price || opt.current_price || 0),
         dte: opt.dte,
         iv: 25 // Default IV for now
       }));

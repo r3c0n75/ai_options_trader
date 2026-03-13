@@ -10,10 +10,18 @@ All notable changes to this project will be documented in this file.
     - **Real-time Persistence**: Ensured the user's selected sort order is maintained during the 5-second automatic data refresh cycle, preventing disruptive UI jumps.
 
 - **Portfolio Payoff Chart Fixes**:
+    - **Sign Correction**: Resolved a critical bug where credit spreads (money received) were incorrectly treated as costs (money paid) in P/L calculations.
     - **Black-Scholes Guards**: Handled non-positive stock prices (`S <= 0`) to prevent `$NaN` in distributions by returning intrinsic values.
     - **Robust Underlying Price Logic**: Added proactive stock price fetching in the backend (`main.py`) for option positions and removed incorrect fallbacks to option premiums.
     - **Theoretical Curve Anchoring**: Calibrated the theoretical payoff curve to anchor exactly to the actual realized portfolio P/L, ensuring visual consistency.
+    - **Zero-Line Visibility**: Brightened the break-even zero line in `StrategyPayoff.tsx` for better accessibility in dark mode.
     - **UI Refinements**: Renamed tooltip P/L label to "Current P/L" and widened tooltip for better legibility on multi-leg strategies.
+
+- **Trade Execution & Safety**:
+    - **Limit Order Protection**: Implemented mandatory **Limit Orders** for all multi-leg spreads, using recommended premiums to prevent "bad fills" and guaranteed losses from leg-in errors.
+    - **Active Status Polling**: Added backend polling (5s) to detect immediate order fills after submission.
+    - **Order Feedback UI**: Developed distinct "Order Executed" (Filled) and "Order Working" (Pending) states in the confirmation modal.
+    - **Recent Orders Mapping**: Refactored backend mapping to robustly extract underlying symbol (e.g., "USO") and trade side from multi-leg option legs.
 
 ### Changed
 - **UI Branding**: Renamed "Deep Research" to **"AI Chat"** for a more conversational and intuitive user experience.

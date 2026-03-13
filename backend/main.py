@@ -9,6 +9,7 @@ from engine import evaluate_market_health, generate_recommendations
 from pydantic import BaseModel
 import datetime
 import re
+import time
 from alpaca_trading import (
     submit_order, get_positions, close_position, 
     close_all_positions, get_orders, cancel_order,
@@ -324,7 +325,6 @@ def execute_paper_trade(trade: TradeCreate):
                     submit_order(trade.symbol, required_qty - current_qty, "buy")
                     
                     # Robust polling to ensure Alpaca recognizes the "covered" status
-                    import time
                     time.sleep(2) # Initial wait for order to process
                     max_retries = 15
                     for i in range(max_retries):
@@ -340,17 +340,42 @@ def execute_paper_trade(trade: TradeCreate):
                             break
                         time.sleep(1)
             
+            # Calculate limit price for the spread (Positive=Debit, Negative=Credit)
+            limit_price = 0
+            has_options = False
+            for leg in trade.legs:
+                if leg.type.upper() in ["CALL", "PUT"]:
+                    has_options = True
+                    if leg.side.upper() in ["BUY", "LONG"]:
+                        limit_price += leg.premium
+                    else:
+                        limit_price -= leg.premium
+            
             # Final attempt to submit with error handling for "uncovered" race condition
+            order_data = {}
             try:
-                submit_options_order(trade.strategy, legs_data, trade.quantity)
+                order_data = submit_options_order(trade.strategy, legs_data, trade.quantity, limit_price if has_options else None)
             except Exception as e:
                 if "uncovered option" in str(e).lower():
                     # One last ditch effort sync wait
-                    import time
                     time.sleep(5)
-                    submit_options_order(trade.strategy, legs_data, trade.quantity)
+                    order_data = submit_options_order(trade.strategy, legs_data, trade.quantity, limit_price if has_options else None)
                 else:
                     raise e
+            
+            # Poll for immediate fill (5s)
+            from alpaca_trading import get_order
+            order_id = order_data.get("id")
+            final_status = order_data.get("status", "OPEN")
+            
+            if order_id:
+                for _ in range(5):
+                    time.sleep(1)
+                    poll_data = get_order(order_id)
+                    if poll_data:
+                        final_status = poll_data.get("status", final_status)
+                        if final_status == "filled":
+                            break
             
             return TradeResponse(
                 id=trade.symbol,
@@ -358,7 +383,7 @@ def execute_paper_trade(trade: TradeCreate):
                 strategy=trade.strategy,
                 entry_price=trade.entry_price,
                 quantity=trade.quantity,
-                status="OPEN",
+                status=final_status.upper(),
                 opened_at=datetime.datetime.utcnow(),
                 side=trade.side.lower()
             )
@@ -396,6 +421,45 @@ def execute_paper_trade(trade: TradeCreate):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
+
+def _map_alpaca_order_to_trade_response(o: dict) -> TradeResponse:
+    sym = o.get("symbol")
+    side = o.get("side") or "buy"
+    
+    # Handle multi-leg (mleg) orders which don't have a top-level symbol/side
+    if not sym and o.get("legs"):
+        leg_symbol = o["legs"][0].get("symbol", "")
+        match = re.search(r'^([A-Z]+)\d', leg_symbol)
+        if match:
+            sym = match.group(1)
+        
+        # Infer side from first leg if missing
+        if not o.get("side"):
+            leg_side = o["legs"][0].get("side", "")
+            side = "buy" if "buy" in leg_side.lower() else "sell"
+
+    # Improve strategy name
+    order_type = o.get("type", "limit").capitalize()
+    strategy_name = f"{order_type} {side.capitalize()}"
+    if o.get("order_class") == "mleg":
+        strategy_name = f"Spread {side.capitalize()}"
+
+    # Status handling
+    status = o.get("status", "OPEN").upper()
+    if status in ["NEW", "ACCEPTED"]:
+        status = "PENDING"
+
+    return TradeResponse(
+        id=o["id"],
+        symbol=sym or "Unknown",
+        strategy=strategy_name,
+        entry_price=float(o.get("filled_avg_price") or 0.0),
+        current_price=float(o.get("filled_avg_price") or 0.0),
+        quantity=abs(int(float(o.get("filled_qty") or o.get("qty", 0)))),
+        status=status,
+        side=side,
+        opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
+    )
 
 @app.get("/trades", response_model=List[TradeResponse])
 def get_open_trades(status: str = "open"):
@@ -457,30 +521,10 @@ def get_open_trades(status: str = "open"):
                 ))
             
             for o in open_orders:
-                trades.append(TradeResponse(
-                    id=o["id"],
-                    symbol=o["symbol"],
-                    strategy=f"{o['type'].capitalize()} {o['side'].capitalize()}",
-                    entry_price=0.0,
-                    current_price=0.0,
-                    quantity=abs(int(float(o.get("qty", 0)))),
-                    status="PENDING",
-                    side=o["side"],
-                    opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
-                ))
+                trades.append(_map_alpaca_order_to_trade_response(o))
 
             for o in closed_orders:
-                trades.append(TradeResponse(
-                    id=o["id"],
-                    symbol=o["symbol"],
-                    strategy=f"{o['type'].capitalize()} {o['side'].capitalize()}",
-                    entry_price=float(o.get("filled_avg_price") or 0.0),
-                    current_price=float(o.get("filled_avg_price") or 0.0),
-                    quantity=abs(int(float(o.get("filled_qty", 0)))),
-                    status=o["status"].upper(),
-                    side=o["side"],
-                    opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
-                ))
+                trades.append(_map_alpaca_order_to_trade_response(o))
             return trades
         
         # Default behavior: Just open positions and open orders
@@ -533,17 +577,7 @@ def get_open_trades(status: str = "open"):
                 )
             ))
         for o in orders:
-            trades.append(TradeResponse(
-                id=o["id"],
-                symbol=o["symbol"],
-                strategy=f"{o['type'].capitalize()} {o['side'].capitalize()}",
-                entry_price=0.0,
-                current_price=0.0,
-                quantity=abs(int(float(o.get("qty", 0)))),
-                status="PENDING",
-                side=o["side"],
-                opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00'))
-            ))
+            trades.append(_map_alpaca_order_to_trade_response(o))
         return trades
     except Exception as e:
         print(f"CRITICAL ERROR in get_open_trades: {e}")

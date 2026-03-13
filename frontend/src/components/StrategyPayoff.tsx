@@ -74,17 +74,19 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
       : 0;
     
     // 2. Consider total premium as a range factor (exclude stock price as it distorts zoom)
+    // CAP total premium at 10% of underlying to prevent extreme ranges from bad data
     const totalPremium = legs.reduce((sum, l) => {
       const typeRaw = (l.type || '').toString().toUpperCase().trim();
       const isStock = typeRaw === 'STOCK' || typeRaw === 'EQUITY';
       return sum + (isStock ? 0 : (l.premium || 0));
     }, 0);
+    const cappedPremium = Math.min(totalPremium, underlying_price * 0.1);
     
     // 3. Set a minimum floor (5% of underlying) so it doesn't look 'thin'
     const priceFloor = underlying_price * 0.05;
 
     // Use the max of these factors with 20% padding
-    const baseRange = Math.max(maxStrikeDist, totalPremium, priceFloor) * 1.2;
+    const baseRange = Math.max(maxStrikeDist, cappedPremium, priceFloor) * 1.25;
     const range = Math.max(baseRange * zoomLevel, 0.5); 
     
     const minPrice = underlying_price - range;
@@ -112,26 +114,30 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
 
   const minPnL = useMemo(() => {
     if (!points.length) return 0;
+    // Prioritize expiration curve for scaling, include current P/L only if it's significantly different
     const p1 = Math.min(...points.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
-    const p2 = Math.min(...currentPoints.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
-    const min = Math.min(p1, p2);
+    const p2Current = currentPoints.find(p => Math.abs(p.price - underlying_price) < 0.1)?.pnl || p1;
+    const min = Math.max(Math.min(p1, p2Current), p1 - Math.abs(p1) * 0.5); // Don't let current P/L blow out the scale
     return Number.isFinite(min) ? min : 0;
-  }, [points, currentPoints]);
+  }, [points, currentPoints, underlying_price]);
 
   const maxPnLValue = useMemo(() => {
     if (!points.length) return 0;
     const p1 = Math.max(...points.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
-    const p2 = Math.max(...currentPoints.map((p: any) => p.pnl).filter((v: number) => Number.isFinite(v)));
-    const max = Math.max(p1, p2);
+    const p2Current = currentPoints.find(p => Math.abs(p.price - underlying_price) < 0.1)?.pnl || p1;
+    const max = Math.min(Math.max(p1, p2Current), p1 + Math.abs(p1) * 0.5);
     return Number.isFinite(max) ? max : 0;
-  }, [points, currentPoints]);
+  }, [points, currentPoints, underlying_price]);
 
   const maxPnLScale = useMemo(() => {
-    const peak = Math.max(Math.abs(minPnL), Math.abs(maxPnLValue));
+    // Drive scale primarily by expiration potential
+    const p1Min = Math.min(...points.map((p: any) => p.pnl));
+    const p1Max = Math.max(...points.map((p: any) => p.pnl));
+    const peak = Math.max(Math.abs(p1Min), Math.abs(p1Max));
+    
     // Fit the curve vertically: use the peak profit/loss with a 20% buffer
-    // Minimum floor of $1.00 to avoid extreme magnification on flat lines
-    return Math.max(peak * 1.2, 1.0);
-  }, [minPnL, maxPnLValue]);
+    return Math.max(peak * 1.3, 1.0);
+  }, [points]);
   
   const margin = 40;
   const width = 640;
@@ -279,7 +285,7 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
         onMouseLeave={() => setHoverData(null)}
       >
         {/* Grids */}
-        <line x1={margin} y1={yScale(0)} x2={width - margin} y2={yScale(0)} stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
+        <line x1={margin} y1={yScale(0)} x2={width - margin} y2={yScale(0)} stroke="#334155" strokeWidth="1" strokeDasharray="4 4" />
         
         {/* Shaded Areas */}
         <path d={areas.profit} fill="#10b981" fillOpacity="0.15" />
@@ -463,9 +469,17 @@ export const StrategyPayoff = ({ data }: StrategyPayoffProps) => {
                {minPnL >= 0 ? '$0.00' : minPnL < -1000 ? 'Uncapped' : `$${Math.abs(minPnL).toFixed(2)}`}
              </span>
            </div>
+           {actual_pl !== undefined && (
+             <div>
+               <span className="text-[9px] text-gray-600 block uppercase font-bold">Current P/L</span>
+               <span className={`text-xs font-mono font-bold ${actual_pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                 {actual_pl >= 0 ? '+' : ''}${actual_pl.toFixed(2)}
+               </span>
+             </div>
+           )}
         </div>
         <div className="text-right">
-           <span className="text-[9px] text-gray-600 block uppercase font-bold">Expected P/L</span>
+           <span className="text-[9px] text-gray-600 block uppercase font-bold">Expiration P/L</span>
            <span className={`text-xs font-mono font-bold ${calculatePnL(underlying_price) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
              {calculatePnL(underlying_price) >= 0 ? '+' : ''}${calculatePnL(underlying_price).toFixed(2)}
            </span>

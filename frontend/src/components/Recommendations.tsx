@@ -126,9 +126,8 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
         throw new Error(data.detail || 'Unknown error from server');
       }
       
-      // We don't close the modal or navigate here anymore.
-      // The modal stays in 'success' state until user clicks 'Done'.
       setHasSuccess(true);
+      return data; // Return data for status inspection
     } catch (err: any) {
       console.error(err);
       throw err;
