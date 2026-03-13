@@ -4,27 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
-- **Market Health Refresh Interval**: Optimized the "Market Health" analysis refresh rate to **10 minutes** (from 10 seconds). This reduces background API overhead and prevents excessive re-analysis noise for long-term macro indicators.
-- **UI Refinement**: Renamed "Deep Research: <symbol>" to **"AI Chat"** in the Research Sidecar for a cleaner, more intuitive chat interface.
-- **Analysis Stability**: Optimized `NewsAnalysisModal` trigger logic and memoized portfolio context to prevent flickering during background refreshes.
-
 ### Added
-- **Sentient AI News Insights**: 
-    - **Asset Highlighting**: Automatically flags portfolio assets in news items with sentient amber-gold highlights and target icons.
+- **Sentient AI News Insights**:
+    - **Asset Highlighting**: Automatically flags portfolio assets (including pending orders) in news items with sentient amber-gold highlights and target icons.
+    - **Robust Text Scan**: Implemented a regex-based fallback to identify tickers in headlines and summaries even when API-provided tags are missing.
     - **Portfolio Filtering**: Added a persistent toggle to filter the news feed strictly for relevant holdings.
-    - **Deep Impact Analysis**: Created a high-fidelity modal providing impact scores, AI reasoning, and recommended actions (Hold, Hedge, Close) for any news item.
-    - Integrated a proactive "AI Action" column in the Portfolio table, providing real-time **Hold**, **Close**, and **Roll** suggestions.
-    - Implemented interactive **Action Badges** that display concise rationales on hover.
-    - Added a **Confirmation Modal** for AI actions, providing users with a deep-dive rationale, key risk considerations, and a direct execution path.
+    - **Deep Impact Analysis**: Created a high-fidelity glassmorphic modal providing impact scores, AI reasoning, and recommended actions (Hold, Hedge, Close) for any news item.
+- **Enhanced Asset Tracking**:
+    - Updated portfolio synchronization to include `PENDING` and `ACCEPTED` orders in the relevance engine, ensuring immediate feedback (e.g., for after-hours USO orders).
 - **Macro-Aware Sentiment Evaluation**:
     - Backend now synthesizes financial news and VIX volatility into a unified **Risk Score** and **Market Mood**.
-    - Recommendations are automatically tuned based on geopolitical health (e.g., defensive shift during market volatility).
 - **Strategy-Aware Health Heuristics**:
-    - Refined the health engine to evaluate the **entire strategy** (e.g., Covered Call) rather than individual legs, eliminating false alarms on healthy positions with minor leg fluctuations.
-    - Implemented **DTE-Sensitive Thresholds**: Risks are now calibrated by duration, giving long-dated trades (14-45+ DTE) more breathing room while maintaining high sensitivity for Gamma-risk positions (< 7 DTE).
+    - Refined the health engine to evaluate the **entire strategy** (e.g., Covered Call) rather than individual legs.
+    - Implemented **DTE-Sensitive Thresholds** for risk calibration.
 - **OCC-Based DTE Calculation**:
-    - Implemented a backend `parse_dte` utility that extracts exact "Days to Expiration" from OCC symbols, ensuring health evaluations use precise time-to-maturity data.
+    - Implementation of backend `parse_dte` utility for exact "Days to Expiration" extraction.
+
+### Changed
+- **UI Branding**: Renamed "Deep Research" to **"AI Chat"** for a more conversational and intuitive user experience.
+- **Market Health Refresh Interval**: Optimized the market analysis refresh rate to **10 minutes** to reduce API overhead and noise.
+
+### Fixed
+- **Frontend Stability**:
+    - Resolved a critical **Temporal Dead Zone (TDZ)** error in `App.tsx` that caused a crash when navigating to the news section.
+    - Fixed a flickering loading state in the AI Analysis modal via memoization and dependency refinement.
+    - Implemented defensive guards in the news matching engine to prevent universal highlighting caused by malformed/empty ticker data.
+- **Backend Reliability**:
+    - Resolved a **422 Unprocessable Entity** error on the news analysis endpoint by correcting the Pydantic schema alignment.
 
 ### Fixed
 - **Backend Stability & Resilience**:

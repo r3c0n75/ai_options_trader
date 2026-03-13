@@ -64,7 +64,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Proactive "AI Action" Co-pilot**:
     - **Strategy-Aware Health Dashboard**: Implemented a core intelligent layer that evaluates position health against current macro catalysts (Risk Score, Mood).
     - **Contextual Confirmation**: Every AI action (Hold, Close, Roll) is backed by a dedicated confirmation flow explaining the rationale and risk-assessment points.
-    - **Duration-Calibrated Heuristics**: Recommendations automatically adjust their risk tolerance based on DTE extracted from OCC symbols, prioritizing Gamma-risk management for short-dated options.
+    - **Duration-Calibrated Heuristics**: Recommendations automatically adjust their risk tolerance based on DTE extracted from OCC symbols.
+* **Sentient AI News Insights**: 
+    - **Inclusive Highlighting**: Assets you own (or have pending orders for) are highlighted in **Amber/Gold** with a 🎯 Target icon. Fixed issues where after-hours orders like **USO** weren't immediately recognized.
+    - **Robust Text Analysis**: Implemented a dual-matching engine that scans headlines and summaries for tickers using Regex. This ensures highlights appear even when the news API fails to "tag" the ticker.
+    - **Deep Impact Analysis**: Clicking **AI INSIGHT** opens a premium glassmorphic modal where Gemini evaluates news against your holdings, providing an **Impact Score**, **AI Reasoning**, and **Next Steps**.
 * **UI & UX Polish**:
     - **AI Chat Branding**: Renamed "Deep Research" sidecar to **"AI Chat"** to align with conversational expectations.
 - **Optimized Data Refresh Rates**: 
@@ -96,6 +100,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Granular vs. Strategy P/L Discrepancy**: Standard health models evaluate individual legs. A "CLOSE" signal on a short call leg (-50% P/L) might be a false alarm for a Covered Call that is overall profitable. AI logic must be "Strategy Aware" and evaluate the aggregate P/L of grouped positions.
 * **Gemini Resilience & Critical Fallbacks**: Heavy-weight AI calls (Macro Health) should never block core data flow. Implement robust try-except blocks with "Neutral" fallbacks to ensure the UI stays responsive even during API timeouts or rate limits.
 * **FastAPI Scoping & Circular Imports**: When importing logic across `main.py` and `engine.py`, functional-level imports (inside the endpoint) are often required to avoid circular dependency crashes at startup.
+* **Temporal Dead Zone (TDZ) in React**: Be extremely cautious with the order of hook declarations and utility functions in large components like `App.tsx`. Memoized values that depend on utility functions to parse symbols will crash the app if the utility is defined *after* the hook. Solution: Move common utilities outside the component scope.
+* **State Flicker & Effect Dependencies**: When implementing complex modals (like AI Analysis), ensure `useEffect` dependencies are strictly scoped. Inconsistent dependencies or state resets can cause the "Analyzing..." state to flicker during background refreshes.
+* **Case-Insensitive Regex Guardrails**: When scanning text for tickers (e.g., "A", "I"), use `\b` word boundaries in regex to prevent false positives (like matching "A" in "Apple" or "C" in "Company").
+* **Empty String Data Contamination**: Malformed backend data (like a failed trade with an empty ticker `""`) can cause universal matching bugs in the frontend. Always implement defensive filtering in `useMemo` hooks and guarding in matching functions to purge empty or null strings from the portfolio awareness set.
+* **Pydantic Schema Alignment**: FastAPI endpoints with complex `response_model` definitions can fail with 422 errors if the internal data structure (e.g., `base_value`) is moved between model hierarchies without updating the endpoint schema.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.
