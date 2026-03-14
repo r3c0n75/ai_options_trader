@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-13] - Cancel Order UX Improvements
+
+### Added
+- **Two-Step Cancel Confirmation** (`App.tsx`):
+    - Clicking the cancel (✕) button now shows an inline **"Cancel? [Yes] [No]"** prompt directly in the order row, preventing accidental cancellations.
+    - Clicking **No** dismisses the prompt with no action taken.
+
+### Fixed
+- **Cancel Order Status Feedback**:
+    - When **Yes** is clicked, the status column immediately changes to a pulsing **"● CANCELLING"** badge (rose-colored) and all action buttons are hidden, giving clear in-progress feedback.
+    - Fixed a race condition where the status would briefly revert to **PENDING** after the cancel succeeded. Root cause: Alpaca's GET /orders endpoint can lag behind a DELETE, causing a refresh to return stale PENDING data. Fixed by implementing an **optimistic update** — local state is immediately set to CANCELED upon a successful DELETE, with a background sync to reconcile with the server.
+    - Failure path is safe: if the DELETE fails, the optimistic update is never applied, the row reverts to PENDING with action buttons restored, and an error toast is displayed.
+
 ## [2026-03-13] - Iron Condor Fixes & Order Management
 
 ### Fixed

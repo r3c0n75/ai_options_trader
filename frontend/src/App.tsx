@@ -103,6 +103,8 @@ function App() {
   const [analyzingNews, setAnalyzingNews] = useState<any | null>(null);
   const [retryTrade, setRetryTrade] = useState<any | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'market_value', direction: 'desc' });
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const handleRequestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -580,11 +582,19 @@ function App() {
   };
 
   const handleCancelOrder = async (orderId: string) => {
+    setCancellingId(orderId);
+    setCancelConfirmId(null);
     try {
       const response = await fetch(`http://localhost:8000/trades/${orderId}`, {
         method: 'DELETE'
       });
       if (response.ok) {
+        // Optimistically update local state immediately so the row shows CANCELED
+        // before Alpaca's GET /orders reflects the change (there's a brief race condition)
+        setRecentOrders(prev => prev.map(o =>
+          o.id === orderId ? { ...o, status: 'CANCELED' } : o
+        ));
+        // Background sync - don't await so CANCELED badge stays visible
         fetchData();
       } else {
         const data = await response.json();
@@ -592,6 +602,8 @@ function App() {
       }
     } catch (err: any) {
       setError(err.message || 'Network error');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -1137,35 +1149,61 @@ function App() {
                             {o.entry_price < 0 && <span className="ml-1 text-[8px] opacity-70 uppercase">Credit</span>}
                           </td>
                           <td className="py-4 px-6">
-                            <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold tracking-widest ${
-                              o.status === 'FILLED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 
-                              o.status === 'CANCELED' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : 
-                              'bg-gray-800 text-gray-400'
-                            }`}>
-                              {o.status}
-                            </span>
+                            {cancellingId === o.id ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold tracking-widest bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+                                CANCELLING
+                              </span>
+                            ) : (
+                              <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold tracking-widest ${
+                                o.status === 'FILLED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 
+                                o.status === 'CANCELED' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : 
+                                'bg-gray-800 text-gray-400'
+                              }`}>
+                                {o.status}
+                              </span>
+                            )}
                           </td>
                           <td className="py-4 px-6 text-[10px] text-gray-500 font-mono">{new Date(o.opened_at).toLocaleString()}</td>
                           <td className="py-4 px-6 text-right">
                             <div className="flex gap-2 justify-end">
-                              {o.status === 'PENDING' && (
-                                <>
-                                  <button 
-                                    onClick={() => setEditingOrder(o)}
-                                    className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                                    title="Update Price"
-                                  >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
-                                  <button 
-                                    onClick={() => handleCancelOrder(o.id)}
-                                    className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                                    title="Cancel Order"
-                                  >
-                                    <XCircle className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
+                  {o.status === 'PENDING' && cancellingId !== o.id && (
+                <>
+                  <button 
+                    onClick={() => setEditingOrder(o)}
+                    className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                    title="Update Price"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  {cancelConfirmId === o.id ? (
+                    <div className="flex items-center gap-1 animate-in fade-in slide-in-from-right-2">
+                      <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Cancel?</span>
+                      <button
+                        onClick={() => handleCancelOrder(o.id)}
+                        disabled={cancellingId === o.id}
+                        className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest bg-rose-500 hover:bg-rose-400 text-white rounded-md transition-colors disabled:opacity-60"
+                      >
+                        {cancellingId === o.id ? '...' : 'Yes'}
+                      </button>
+                      <button
+                        onClick={() => setCancelConfirmId(null)}
+                        className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md transition-colors"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setCancelConfirmId(o.id)}
+                      className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                      title="Cancel Order"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </>
+              )}
                               {(o.status === 'CANCELED' || o.status === 'REJECTED') && o.legs && (
                                 <button 
                                   onClick={() => {
