@@ -30,12 +30,15 @@ import {
 import { Omnisearch } from './components/Omnisearch';
 import { SymbolAnalysis } from './components/SymbolAnalysis';
 import { TradeConfirmationModal } from './components/TradeConfirmationModal';
+import { DebugHUD } from './components/DebugHUD';
+import { Bug } from 'lucide-react';
 
 interface AIRecommendation {
   action: 'HOLD' | 'CLOSE' | 'ROLL';
   rationale: string;
   confidence: number;
   details: string[];
+  model?: string;
 }
 
 interface TradeResponse {
@@ -105,6 +108,7 @@ function App() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'market_value', direction: 'desc' });
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
 
   const handleRequestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -1272,7 +1276,14 @@ function App() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white tracking-tight">AI Recommendation: {selectedActionRec.rec.action}</h3>
-                  <div className="text-xs text-gray-500 font-medium">Position: <span className="text-gray-300">{selectedActionRec.trade.symbol}</span> | Confidence: <span className="text-emerald-400">{selectedActionRec.rec.confidence}%</span></div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <div className="text-xs text-gray-500 font-medium">Position: <span className="text-gray-300">{selectedActionRec.trade.symbol}</span> | Confidence: <span className="text-emerald-400">{selectedActionRec.rec.confidence}%</span></div>
+                    {selectedActionRec.rec.model && (
+                      <div className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none">
+                        {selectedActionRec.rec.model}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <button 
@@ -1425,6 +1436,18 @@ function App() {
           } as any}
         />
       )}
+
+      <DebugHUD isOpen={isDebugOpen} onClose={() => setIsDebugOpen(false)} />
+
+      {/* Floating Debug Toggle */}
+      <button 
+        onClick={() => setIsDebugOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gray-900 border border-white/10 rounded-full flex items-center justify-center shadow-2xl hover:bg-gray-800 transition-all hover:scale-110 active:scale-95 group z-[150]"
+        title="Open System HUD"
+      >
+        <div className="absolute inset-0 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-all" />
+        <Bug className="w-6 h-6 text-blue-400 group-hover:text-blue-300 relative z-10" />
+      </button>
     </div>
   );
 }

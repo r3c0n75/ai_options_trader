@@ -2,6 +2,7 @@ import os
 import time
 import google.generativeai as genai
 from dotenv import load_dotenv
+from debug_utils import log_api_call, log_ai_model, log_error
 
 load_dotenv()
 
@@ -19,15 +20,18 @@ def _get_model(model_name: str = None):
     # Normalize to Tier 1 Previews available in this project
     model_id = name
     if "3.1-pro" in model_id: model_id = "gemini-3.1-pro-preview"
+    elif "3.1-flash" in model_id: model_id = "gemini-3.1-flash-lite-preview"
     elif "3-pro" in model_id: model_id = "gemini-3-pro-preview"
     elif "3-flash" in model_id: model_id = "gemini-3-flash-preview"
     elif "2.5-pro" in model_id: model_id = "gemini-2.5-pro"
+    elif "2.5-flash-lite" in model_id: model_id = "gemini-2.5-flash-lite"
     elif "2.5-flash" in model_id: model_id = "gemini-2.5-flash"
+    elif "2.0-flash-lite" in model_id: model_id = "gemini-2.0-flash-lite"
     elif "2.0-flash" in model_id: model_id = "gemini-2.0-flash"
     elif "flash-lite" in model_id: model_id = "gemini-2.0-flash-lite"
     elif "1.5-pro" in model_id: model_id = "gemini-1.5-pro"
     elif "flash-latest" in model_id: model_id = "gemini-flash-latest"
-    elif "1.5-flash" in model_id: model_id = "gemini-flash-latest" # Map legacy 1.5 to latest
+    elif "1.5-flash" in model_id: model_id = "gemini-flash-latest"
     elif "m37" in model_id.lower() or "placeholder_m37" in model_id.lower(): model_id = "gemini-2.5-flash"
     elif "m18" in model_id.lower() or "placeholder_m18" in model_id.lower(): model_id = "gemini-3.1-pro" # Link M18 to the Pro model
     
@@ -46,11 +50,18 @@ def _get_model(model_name: str = None):
         print(f"Error initializing model {model_id}: {e}")
         return None
 
-def _generate_with_retry(model, prompt, max_retries=1):
-    """Generates content with backoff and model walking, strictly bounded by time."""
-    # List of models to try in order of likely quota availability for this project
+def _generate_with_retry(model, prompt, max_retries=2):
+    """Generates content with backoff and prioritized model hierarchy."""
+    import random
+    
+    # Priority order: Newest Flash models first as they have separate/higher quotas
     fallback_chain = [
-        "gemini-1.5-flash",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
         "gemini-1.5-flash-8b",
         "gemini-flash-latest"
     ]
@@ -82,15 +93,27 @@ def _generate_with_retry(model, prompt, max_retries=1):
                 try:
                     # Individual request timeout is now strictly bounded by remaining time or 8s
                     request_timeout = min(8.0, time_remaining)
-                    return m.generate_content(prompt, request_options={"timeout": request_timeout})
+                    log_api_call("Gemini")
+                    log_ai_model(m_name)
+                    response = m.generate_content(prompt, request_options={"timeout": request_timeout})
+                    return response, m_name # Return both response and the model name used
                 except Exception as e:
                     last_error = str(e)
                     print(f"DEBUG: Model {m_name} failed (attempt {attempt+1}): {last_error}")
+                    
                     if "429" in last_error or "Quota" in last_error:
-                        break # Try next model immediately if quota hit
+                        # Implement Jittered Exponential Backoff
+                        wait_base = 2 ** (attempt + 1)
+                        wait_time = wait_base + random.uniform(0.1, 0.5)
+                        wait_time = min(wait_time, 5.0) # Cap wait at 5s
+                        
+                        print(f"DEBUG: Quota hit on {m_name}. Backing off {wait_time:.2f}s before fallback.")
+                        time.sleep(wait_time)
+                        break # Try next model immediately after backoff
+                        
                     if "504" in last_error or "deadline" in last_error.lower():
-                        # Timeout on this model, try next one immediately
                         break
+                    
                     time.sleep(0.5)
         except Exception as e:
             last_error = str(e)
@@ -112,7 +135,7 @@ Task: Synthesize the current price trend (Short vs long term) and news into a pr
 Return ONLY valid JSON with keys: verdict, thesis (2 sentences explaining the trend/news blend), suggested_play."""
 
     try:
-        response = _generate_with_retry(model, prompt)
+        response, actual_model = _generate_with_retry(model, prompt)
         text = response.text
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -120,9 +143,12 @@ Return ONLY valid JSON with keys: verdict, thesis (2 sentences explaining the tr
             text = text.split("```")[1].split("```")[0].strip()
         
         import json
-        return json.loads(text)
+        res = json.loads(text)
+        res["model"] = actual_model
+        return res
     except Exception as e:
         error_msg = str(e)
+        log_error("AI_ENGINE:get_symbol_vibe", "GET", 500, error_msg)
         print(f"CRITICAL: get_symbol_vibe failed: {error_msg}")
         return {
             "verdict": "Error",
@@ -179,9 +205,10 @@ def get_research_response(symbol: str, question: str, context: str, model_name: 
     )
 
     try:
-        response = _generate_with_retry(model, prompt)
-        return response.text
+        response, actual_model = _generate_with_retry(model, prompt)
+        return f"{response.text}\n\n*Analysis powered by {actual_model}*"
     except Exception as e:
+        log_error("AI_ENGINE:get_research_response", "GET", 500, str(e))
         return f"Research Error: Quota Limit Reached. (Current key tier is likely FREE). Error: {str(e)[:50]}"
 
 def get_macro_sentiment(news_headlines: str, vix: float, model_name: str = None) -> dict:
@@ -199,7 +226,7 @@ Consider geopolitical risk, inflation, and volatility.
 Return ONLY valid JSON with keys: risk_score (int), market_mood (Risk-On, Risk-Off, Defensive), global_thesis (1 concise sentence)."""
 
     try:
-        response = _generate_with_retry(model, prompt)
+        response, actual_model = _generate_with_retry(model, prompt)
         text = response.text
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -212,8 +239,11 @@ Return ONLY valid JSON with keys: risk_score (int), market_mood (Risk-On, Risk-O
             text = text[1:-1]
             
         import json
-        return json.loads(text)
+        res = json.loads(text)
+        res["model"] = actual_model
+        return res
     except Exception as e:
+        log_error("AI_ENGINE:get_macro_sentiment", "GET", 500, str(e))
         print(f"DEBUG: get_macro_sentiment failed: {e}")
         return {
             "risk_score": 50, 
@@ -253,7 +283,7 @@ Return ONLY valid JSON with keys:
 """
 
     try:
-        response = _generate_with_retry(model, prompt)
+        response, actual_model = _generate_with_retry(model, prompt)
         text = response.text
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -261,8 +291,11 @@ Return ONLY valid JSON with keys:
             text = text.split("```")[1].split("```")[0].strip()
         
         import json
-        return json.loads(text)
+        res = json.loads(text)
+        res["model"] = actual_model
+        return res
     except Exception as e:
+        log_error("AI_ENGINE:analyze_news_impact", "POST", 500, str(e))
         print(f"DEBUG: analyze_news_impact failed: {e}")
         return {
             "impact_score": 5,

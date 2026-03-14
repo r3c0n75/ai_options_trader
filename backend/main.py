@@ -1,8 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from collections import deque
+from debug_utils import (
+    get_debug_stats_dict, log_api_call, log_ai_model, 
+    log_cache, log_error, log_latency
+)
 
 import models
 from database import engine, get_db
@@ -34,6 +39,14 @@ _GLOBAL_EXECUTOR = ThreadPoolExecutor(max_workers=100)
 _SCAN_LOCKS = {}
 _LAST_RESULT_CACHE = {}
 
+def get_executor_stats():
+    return {
+        "max_workers": _GLOBAL_EXECUTOR._max_workers,
+        "current_threads": len(_GLOBAL_EXECUTOR._threads),
+        "queue_size": _GLOBAL_EXECUTOR._work_queue.qsize(),
+        "is_shutdown": _GLOBAL_EXECUTOR._shutdown
+    }
+
 # Configure CORS for the frontend
 app.add_middleware(
     CORSMiddleware,
@@ -42,6 +55,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def debug_instrumentation_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = None
+    try:
+        response = await call_next(request)
+        duration = time.time() - start_time
+        
+        # Don't track the debug stats endpoint itself to avoid noise
+        if not request.url.path.endswith("/debug/stats"):
+            log_latency(request.url.path, duration, response.status_code)
+            
+            if response.status_code >= 400:
+                log_error(request.url.path, request.method, response.status_code)
+        
+        return response
+    except Exception as e:
+        duration = time.time() - start_time
+        log_error(request.url.path, request.method, 500, str(e))
+        raise e
 
 def parse_dte(symbol: str) -> int | None:
     """Calculates days to expiration from an OCC symbol."""
@@ -63,6 +97,7 @@ class AIRecommendation(BaseModel):
     rationale: str
     confidence: int  # 0-100
     details: List[str]
+    model: str = "N/A"
 
 class MarketHealthResponse(BaseModel):
     status: str
@@ -71,6 +106,7 @@ class MarketHealthResponse(BaseModel):
     risk_score: int = 50
     market_mood: str = "Neutral"
     global_thesis: str = ""
+    model: str = "N/A"
 
 class StrategyLeg(BaseModel):
     strike: float
@@ -94,6 +130,7 @@ class TradeRecommendation(BaseModel):
     pop: str
     risk_reward: str
     confidence: str
+    model: str = "N/A"
     diagram_data: StrategyDiagramData
 
 class AccountResponse(BaseModel):
@@ -195,7 +232,10 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
                 if age < 30:
                     return {"vibe": {"sentiment": "Neutral", "global_thesis": "Analysis in progress...", "description": "Market pulse is being synthesized. Refresh in a few seconds."}, "status": "processing"}
             else:
+                log_cache(hit=True)
                 return cache_data
+
+    log_cache(hit=False)
 
     _SYMBOL_VIBE_CACHE[symbol] = ("FETCHING", now)
     try:
@@ -248,6 +288,12 @@ async def chat_symbol(symbol: str, request: ChatRequest):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to AI Options Trader API"}
+
+@app.get("/debug/stats")
+async def get_debug_stats_api():
+    stats = get_debug_stats_dict()
+    stats["workers"] = get_executor_stats()
+    return stats
 
 import asyncio
 

@@ -20,6 +20,7 @@ interface AnalysisData {
     suggested_play: string;
     trend_3m?: number;
     trend_12m?: number;
+    model?: string;
   };
   news: any[];
   greeks?: {
@@ -134,9 +135,16 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
                 <Sparkles className={`w-24 h-24 ${sentiment.text}`} />
               </div>
               <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                  <span className={`text-xs font-black uppercase tracking-widest ${sentiment.text}`}>AI Pulse Verdict</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                    <span className={`text-xs font-black uppercase tracking-widest ${sentiment.text}`}>AI Pulse Verdict</span>
+                  </div>
+                  {data?.vibe?.model && (
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 bg-black/40 px-2 py-1 rounded border border-white/5">
+                      {data.vibe.model}
+                    </span>
+                  )}
                 </div>
                 
                 {loading ? (

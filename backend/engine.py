@@ -146,7 +146,8 @@ def evaluate_market_health() -> dict:
         "description": description,
         "risk_score": risk_score,
         "market_mood": mood,
-        "global_thesis": global_thesis
+        "global_thesis": global_thesis,
+        "model": sentiment.get("model", "N/A") if 'sentiment' in locals() else "Fallback"
     }
     
     # Update cache
@@ -225,7 +226,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                     entry_price = round(s_put_prem - l_put_prem, 2)
                     conf = "Moderate" if is_high_risk else "High"
                     symbol_recs.append({
-                        "symbol": symbol,
+                        "symbol": symbol, "model": health.get("model", "N/A"),
                         "strategy": "Put Credit Spread",
                         "side": "SELL",
                         "thesis": f"{global_thesis} Selling downside protection on {symbol} despite macro headwinds." if is_high_risk else f"High Implied Volatility crush expected. Selling downside insurance on {symbol}.",
@@ -251,7 +252,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
             if s_call_prem > 0:
                 conf = "Moderate" if is_high_risk else "High"
                 symbol_recs.append({
-                    "symbol": symbol,
+                    "symbol": symbol, "model": health.get("model", "N/A"),
                     "strategy": "Covered Call",
                     "side": "SELL",
                     "thesis": f"Defensive yield generation. {global_thesis} Yielding from expensive calls on {symbol}." if is_high_risk else f"Capitalizing on expensive call premiums while holding {symbol}.",
@@ -278,7 +279,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
             l_call_prem = _get_mid(l_call_contract)
             if l_call_prem > 0:
                 symbol_recs.append({
-                    "symbol": symbol,
+                    "symbol": symbol, "model": health.get("model", "N/A"),
                     "strategy": "Long Call / ATM Leap",
                     "side": "BUY",
                     "thesis": f"Low cost of leverage. Technical breakout potential for {symbol}.",
@@ -306,7 +307,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                     entry_price = round(l_call_prem - s_call_prem, 2)
                     conf = "Low" if is_high_risk else "Moderate"
                     symbol_recs.append({
-                        "symbol": symbol,
+                        "symbol": symbol, "model": health.get("model", "N/A"),
                         "strategy": "Bull Call Debit Spread",
                         "side": "BUY",
                         "thesis": f"Speculative play. {global_thesis} Capped risk on {symbol} recovery." if is_high_risk else f"Cheap premium. Capped risk play on continued macro strength.",
@@ -348,7 +349,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                     entry_price = round(s_p_prem + s_c_prem - l_p_prem - l_c_prem, 2)
                     conf = "High" if (is_high_risk or is_risk_off) else "Moderate"
                     symbol_recs.append({
-                        "symbol": symbol,
+                        "symbol": symbol, "model": health.get("model", "N/A"),
                         "strategy": "Iron Condor",
                         "side": "SELL",
                         "thesis": f"Volatility hedge. {global_thesis} Harvesting theta on {symbol} as markets consolidate." if is_high_risk else f"Macro consolidation. Harvesting theta decay as {symbol} stays rangebound.",
@@ -380,7 +381,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                     entry_price = round(c_prem + p_prem, 2)
                     conf = "High" if (is_high_risk or is_risk_off) else "Low"
                     symbol_recs.append({
-                        "symbol": symbol,
+                        "symbol": symbol, "model": health.get("model", "N/A"),
                         "strategy": "Long Straddle/Strangle",
                         "side": "BUY",
                         "thesis": f"Volatility play. {global_thesis} Positioning for explosive expansion in {symbol}." if is_high_risk else f"Buying cheap volatility ahead of potential macro catalyst expansion.",
@@ -533,7 +534,7 @@ def evaluate_position_health(symbol: str, strategy: str, plpc: float, dte: int |
         confidence = 70
         
     return {
-        "action": action,
+        "action": action, "model": health.get("model", "N/A"),
         "rationale": rationale,
         "confidence": confidence,
         "details": details
@@ -558,7 +559,7 @@ def reprice_strategy(symbol: str, strategy: str, expiration: str):
 
     # Simplified strategy builders based on the strategy name
     res = {
-        "symbol": symbol,
+        "symbol": symbol, "model": health.get("model", "N/A"),
         "strategy": strategy,
         "expiration": expiration,
         "diagram_data": {"underlying_price": current_price}

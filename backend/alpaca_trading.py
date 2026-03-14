@@ -1,6 +1,7 @@
 import httpx
 import os
 from dotenv import load_dotenv
+from debug_utils import log_api_call, log_error
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -19,13 +20,17 @@ def get_headers():
 _HTTP_CLIENT = httpx.Client(timeout=10.0)
 
 def get_account():
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/account"
     response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
-    raise Exception(f"Failed to fetch account: {response.text}")
+    error_msg = response.text
+    log_error("ALPACA:get_account", "GET", response.status_code, error_msg)
+    raise Exception(f"Failed to fetch account: {error_msg}")
 
 def get_portfolio_history(period: str = "1D", timeframe: str = None):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/account/portfolio/history?period={period}"
     if timeframe:
         url += f"&timeframe={timeframe}"
@@ -35,6 +40,7 @@ def get_portfolio_history(period: str = "1D", timeframe: str = None):
     return {}
 
 def submit_order(symbol: str, qty: int, side: str = "buy"):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/orders"
     payload = {
         "symbol": symbol,
@@ -45,10 +51,13 @@ def submit_order(symbol: str, qty: int, side: str = "buy"):
     }
     response = _HTTP_CLIENT.post(url, headers=get_headers(), json=payload)
     if response.status_code not in (200, 201):
-        raise Exception(f"Failed to submit order: {response.text}")
+        error_msg = response.text
+        log_error("ALPACA:submit_order", "POST", response.status_code, error_msg)
+        raise Exception(f"Failed to submit order: {error_msg}")
     return response.json()
 
 def submit_options_order(strategy: str, legs: list, quantity: int = 1, limit_price: float = None):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/orders"
     
     if len(legs) == 1:
@@ -84,19 +93,25 @@ def submit_options_order(strategy: str, legs: list, quantity: int = 1, limit_pri
         
     response = _HTTP_CLIENT.post(url, headers=get_headers(), json=payload)
     if response.status_code not in (200, 201):
-        raise Exception(f"Failed to submit options order: {response.text}")
+        error_msg = response.text
+        log_error("ALPACA:submit_options_order", "POST", response.status_code, error_msg)
+        raise Exception(f"Failed to submit options order: {error_msg}")
     return response.json()
 
 
 def get_positions():
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/positions"
     response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
         return response.json()
-    print(f"FAILED TO FETCH POSITIONS: {response.status_code} - {response.text}")
+    error_msg = f"{response.status_code} - {response.text}"
+    log_error("ALPACA:get_positions", "GET", response.status_code, error_msg)
+    print(f"FAILED TO FETCH POSITIONS: {error_msg}")
     return []
 
 def get_orders(status: str = "open", limit: int = 50):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/orders?status={status}&limit={limit}"
     response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
@@ -104,6 +119,7 @@ def get_orders(status: str = "open", limit: int = 50):
     return []
 
 def get_order(order_id: str):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/orders/{order_id}"
     response = _HTTP_CLIENT.get(url, headers=get_headers())
     if response.status_code == 200:
@@ -111,6 +127,7 @@ def get_order(order_id: str):
     return {}
 
 def close_position(symbol: str):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/positions/{symbol}"
     # This will liquidate the position completely
     response = _HTTP_CLIENT.delete(url, headers=get_headers())
@@ -119,6 +136,7 @@ def close_position(symbol: str):
     return {}
 
 def cancel_order(order_id: str):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/orders/{order_id}"
     response = _HTTP_CLIENT.delete(url, headers=get_headers())
     if response.status_code not in (200, 201, 204, 207):
@@ -126,6 +144,7 @@ def cancel_order(order_id: str):
     return {}
 
 def replace_order(order_id: str, limit_price: float = None, qty: int = None):
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/orders/{order_id}"
     payload = {}
     if limit_price is not None:
@@ -139,6 +158,7 @@ def replace_order(order_id: str, limit_price: float = None, qty: int = None):
     return response.json()
 
 def close_all_positions():
+    log_api_call("Alpaca")
     url = f"{PAPER_API_URL}/positions?cancel_orders=true"
     response = _HTTP_CLIENT.delete(url, headers=get_headers())
     if response.status_code not in (200, 201, 204, 207):

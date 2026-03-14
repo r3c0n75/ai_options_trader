@@ -15,6 +15,7 @@ interface AnalysisData {
   portfolio_relevance: string;
   recommended_action: string;
   sentiment: string;
+  model?: string;
 }
 
 export const NewsAnalysisModal: React.FC<NewsAnalysisModalProps> = ({ 
@@ -133,9 +134,16 @@ export const NewsAnalysisModal: React.FC<NewsAnalysisModalProps> = ({
                 
                 {/* Summary Section */}
                 <div className="p-6 rounded-2xl bg-gray-900/60 border border-gray-800 shadow-inner">
-                  <div className="flex items-center gap-2 mb-3">
-                    <SentimentIcon />
-                    <h4 className="font-bold text-gray-300 text-sm">AI Reasoning</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <SentimentIcon />
+                      <h4 className="font-bold text-gray-300 text-sm">AI Reasoning</h4>
+                    </div>
+                    {analysis.model && (
+                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-600 bg-gray-950 px-2 py-1 rounded border border-gray-800">
+                        {analysis.model}
+                      </span>
+                    )}
                   </div>
                   <p className="text-gray-300 leading-relaxed text-[15px]">
                     {analysis.analysis}

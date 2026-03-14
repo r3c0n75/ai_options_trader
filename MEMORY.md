@@ -12,11 +12,17 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **Visual Branding & UX**:
     - **Custom Favicon**: Implemented a bespoke "AI Pulse" browser tab icon with high-fidelity gradients (#3b82f6 to #34d399) and a semantic heartbeat motif, enhancing the premium feel.
     - **Asset Architecture**: Created `frontend/public` for static assets and updated `index.html` for proper SVG favicon resolution.
+* **System Debug HUD**:
+    - **In-App Monitoring**: Integrated a premium high-tech System HUD accessible via a floating bug icon.
+    - **Concurrency Matrix**: Visualizes real-time load on the `_GLOBAL_EXECUTOR` thread pool using a 100-cell grid. Supports a compact 25-column layout in fullscreen mode.
+    - **Telemetry Suite**: Tracks real-time API latency (ms), cache hit ratios, and AI model usage distribution.
+    - **Unified Error Logging**: Aggregates 4xx/5xx responses and "Soft Errors" (retriable AI service limit exceptions) into a scrollable, wrapped-text terminal log.
 * **Gemini-Powered Research Assistant**:
     * **2026 Model Optimization**: Fully tuned for the latest Gemini model chain (`flash-latest`, `2.5-flash`).
     * **Comparative Context Engine**: Automatically detects multiple mentioned symbols in chat and fetches their real-time price/trend data for instant comparative reasoning.
     * **Advanced Retry Logic**: Backend features localized "daily quota" detection and exponential backoff for `429` errors.
     * **Multi-model Selection**: User-facing dropdown for pivoting between Flash and Pro generations.
+    * **Model Attribution**: Every AI response (Chat, Insight, Pulse) now includes a specific model identifier (e.g., `gemini-1.5-flash`), synchronized between backend retry logic and frontend UI badges.
 * **Trade Recommendations (Top Macro Opportunities)**:
     - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
     - **Enhanced Sorting & Viewing**: Implemented alphabetical (Symbol) and strategy-based sorting, alongside a new "Show All" toggle to expand the focused Top 5 opportunities list.

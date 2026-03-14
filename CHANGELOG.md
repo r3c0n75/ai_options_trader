@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-03-13] - Cancel Order UX Improvements
+
+## [2026-03-13] - Debug HUD & AI Model Attribution
+
+### Added
+- **Real-Time Debug HUD** (`DebugHUD.tsx`):
+    - Implemented a "System HUD" accessed via a floating bug icon for real-time backend monitoring.
+    - **Worker Thread Pool Matrix**: Visualizes `_GLOBAL_EXECUTOR` load with a 100-dot grid (dynamic 25-column layout in fullscreen).
+    - **Telemetry Analytics**: Tracks API latency, cache efficiency, and AI model usage distribution.
+    - **Soft/Hard Error Logs**: Dedicated log view with multi-line wrapping and "Soft Error" (retriable/caught AI exceptions) tracking.
+    - **Fullscreen Transition**: Added Maximize/Minimize toggles for high-density dashboard viewing.
+- **AI Model Attribution**:
+    - **Backend Integration** (`ai_engine.py`, `engine.py`): Modified AI generation to return the specific Gemini model used, propagating it through market health and recommendations.
+    - **Frontend Visibility**: 
+        - Added model badges to **AI Pulse Verdict**, **News Analysis**, and **Trade Action** modals.
+        - Standardized model "walking" fallback IDs across the backend for consistent attribution.
+
+### Fixed
+- **Thread Pool Visualization**: Fixed matrix scrolling issues in fullscreen mode by implementing a compact 4x25 layout.
+- **AI Service Limits Awareness**: Increased visibility for `429` quota errors by treating them as "Soft Errors" in the Debug HUD telemetry.
 
 ### Added
 - **Two-Step Cancel Confirmation** (`App.tsx`):
