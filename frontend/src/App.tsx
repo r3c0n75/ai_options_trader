@@ -327,8 +327,31 @@ function App() {
           strategyName = "Vertical Option Spread";
           strategyType = "debit_spread";
         }
+      } else if (opts.length === 4) {
+        // Iron Condor detection
+        const puts = opts.filter(o => o.occ.type === 'PUT');
+        const calls = opts.filter(o => o.occ.type === 'CALL');
+        
+        if (puts.length === 2 && calls.length === 2) {
+          const putsShort = puts.some(o => o.side === 'short' || o.quantity < 0);
+          const callsShort = calls.some(o => o.side === 'short' || o.quantity < 0);
+          
+          if (putsShort && callsShort) {
+            strategyName = "Iron Condor";
+            strategyType = "iron_condor";
+          } else {
+            strategyName = "4-Leg Spread";
+            strategyType = "custom";
+          }
+        } else {
+          strategyName = "4-Leg Strategy";
+          strategyType = "custom";
+        }
+      } else {
+        strategyName = `${opts.length}-Leg Strategy`;
+        strategyType = "custom";
       }
-      
+
       const legs = opts.map(opt => ({
         strike: opt.occ.strike,
         side: (opt.side?.toLowerCase() === 'short' || opt.quantity < 0) ? ('SELL' as const) : ('BUY' as const),

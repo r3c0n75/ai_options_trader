@@ -101,9 +101,12 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
           setAvailableExpirations(Array.isArray(dates) ? dates : []);
           
           if (trade.expiration) {
-            const expDate = new Date(trade.expiration);
-            const daysTo = (expDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24);
-            if (daysTo < 14) setSelectedHorizon('Weekly');
+            const expDate = parseLocalDate(trade.expiration);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const daysTo = (expDate.getTime() - today.getTime()) / (1000 * 3600 * 24);
+            
+            if (daysTo < 12) setSelectedHorizon('Weekly');
             else if (daysTo < 270) setSelectedHorizon('Monthly');
             else setSelectedHorizon('LEAPS');
           }
@@ -153,11 +156,24 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
   };
 
   /**
-   * Helper to parse YYYY-MM-DD into a local Date without timezone shifts
+   * Helper to normalize dates from YYMMDD (OCC) or YYYY-MM-DD to standard YYYY-MM-DD
+   */
+  const normalizeDate = (dateStr: string): string => {
+    if (!dateStr) return '';
+    if (dateStr.includes('-')) return dateStr;
+    if (dateStr.length === 6) {
+      return `20${dateStr.substring(0, 2)}-${dateStr.substring(2, 4)}-${dateStr.substring(4, 6)}`;
+    }
+    return dateStr;
+  };
+
+  /**
+   * Helper to parse anything into a local Date without timezone shifts
    */
   const parseLocalDate = (dateStr: string) => {
-    if (!dateStr) return new Date();
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const normalized = normalizeDate(dateStr);
+    if (!normalized) return new Date();
+    const [year, month, day] = normalized.split('-').map(Number);
     return new Date(year, month - 1, day);
   };
 
@@ -252,7 +268,9 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                   ? (orderStatus === 'FILLED' ? 'Order Executed' : 'Order Working') 
                   : status === 'error' ? 'Order Failed' : (mode === 'update' ? 'Update Order' : 'Optimize Strategy')}
               </h2>
-              <p className="text-xs text-gray-400 font-black uppercase tracking-[0.2em] mt-0.5">{currentTrade.strategy}</p>
+              <p className="text-xs text-gray-400 font-black uppercase tracking-[0.2em] mt-0.5">
+                {currentTrade.strategy}
+              </p>
             </div>
           </div>
           {status !== 'processing' && (
@@ -308,7 +326,7 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                       onClick={() => handleReprice(date)}
                       disabled={isRepricing}
                       className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${
-                        currentTrade.expiration === date 
+                        normalizeDate(currentTrade.expiration) === normalizeDate(date) 
                         ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
                         : 'bg-gray-800/40 border-white/5 text-gray-500 hover:border-white/10'
                       } ${isRepricing ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -351,8 +369,8 @@ export const TradeConfirmationModal: React.FC<TradeConfirmationModalProps> = ({
                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                        Limit Price (Premium)
                      </label>
-                     <div className={`text-[10px] font-bold uppercase tracking-widest ${isCredit ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {isCredit ? 'Net Credit per share' : 'Net Debit per share'}
+                     <div className={`text-[10px] font-black uppercase tracking-widest ${isCredit ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {isCredit ? 'Strategy Net Credit' : 'Strategy Net Debit'}
                      </div>
                    </div>
                    <div className="relative group">

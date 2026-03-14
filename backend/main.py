@@ -576,9 +576,8 @@ def _map_alpaca_order_to_trade_response(o: dict) -> TradeResponse:
             side = "buy" if "buy" in leg_side.lower() else "sell"
     order_type = o.get("type", "limit").capitalize()
     strategy_name = f"{order_type} {side.capitalize()}"
-    if o.get("order_class") == "mleg": strategy_name = f"Spread {side.capitalize()}"
-    status = o.get("status", "OPEN").upper()
-    if status in ["NEW", "ACCEPTED"]: status = "PENDING"
+    
+    # Process legs first to help with strategy detection
     legs = []
     if o.get("legs"):
         for l in o["legs"]:
@@ -590,6 +589,18 @@ def _map_alpaca_order_to_trade_response(o: dict) -> TradeResponse:
                 l_type = "CALL" if match.group(1) == "C" else "PUT"
                 strike = float(match.group(2)) / 1000.0
             legs.append(StrategyLeg(symbol=leg_sym, strike=strike, side=l.get("side", "buy").upper(), type=l_type, premium=float(o.get("limit_price") or 0.0)))
+
+    if o.get("order_class") == "mleg":
+        strategy_name = f"Spread {side.capitalize()}"
+        if len(legs) == 4:
+            strategy_name = f"Iron Condor {side.capitalize()}"
+        elif len(legs) == 2:
+            l1, l2 = legs[0], legs[1]
+            if l1.type == l2.type:
+                strategy_name = f"{l1.type.capitalize()} Spread {side.capitalize()}"
+
+    status = o.get("status", "OPEN").upper()
+    if status in ["NEW", "ACCEPTED"]: status = "PENDING"
     price = float(o.get("filled_avg_price") or o.get("limit_price") or 0.0)
     return TradeResponse(id=o["id"], symbol=sym or "Unknown", strategy=strategy_name, entry_price=price, current_price=price, quantity=abs(int(float(o.get("qty") or o.get("filled_qty") or 1))), status=status, side=side, opened_at=datetime.datetime.fromisoformat(o["created_at"].replace('Z', '+00:00')), legs=legs if legs else None)
 
@@ -607,10 +618,44 @@ def delete_paper_trade(symbol_or_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 def patch_trade(order_id: str, limit_price: float = None, qty: int = None):
-    from alpaca_trading import replace_order
+    from alpaca_trading import replace_order, get_order, cancel_order, submit_options_order
     try:
-        order_data = replace_order(order_id, limit_price=limit_price, qty=qty)
-        return _map_alpaca_order_to_trade_response(order_data)
+        # Fetch the current order to see if it's a multi-leg (mleg) order
+        existing = get_order(order_id)
+        is_mleg = existing.get("order_class") == "mleg" or (isinstance(existing.get("legs"), list) and len(existing.get("legs", [])) > 1)
+        
+        if is_mleg:
+            # Alpaca does not support replacing mleg orders; cancel and re-submit instead
+            legs_data = existing.get("legs", [])
+            original_qty = int(float(existing.get("qty") or existing.get("filled_qty") or qty or 1))
+            new_qty = qty if qty is not None else original_qty
+            new_limit = limit_price
+            
+            # Build the legs payload
+            legs_payload = []
+            for leg in legs_data:
+                legs_payload.append({
+                    "symbol": leg["symbol"],
+                    "side": leg["side"].lower(),
+                    "ratio_qty": 1
+                })
+            
+            if not legs_payload:
+                raise HTTPException(status_code=400, detail="Cannot resubmit: no legs found on original order.")
+            
+            # Cancel the existing order
+            cancel_order(order_id)
+            
+            # Re-submit with new price
+            strategy_name = existing.get("strategy", "Spread Sell")
+            order_data = submit_options_order(strategy_name, legs_payload, new_qty, new_limit)
+            return _map_alpaca_order_to_trade_response(order_data)
+        else:
+            # Simple single-leg order: use replace
+            order_data = replace_order(order_id, limit_price=limit_price, qty=qty)
+            return _map_alpaca_order_to_trade_response(order_data)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Update trade error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -652,7 +697,7 @@ async def delete_paper_trade_api(symbol_or_id: str):
 @app.patch("/trades/{order_id}", response_model=TradeResponse)
 async def patch_trade_api(order_id: str, update: TradeUpdate):
     try:
-        res = await asyncio.get_event_loop().run_in_executor(_GLOBAL_EXECUTOR, patch_trade, order_id, update)
+        res = await asyncio.get_event_loop().run_in_executor(_GLOBAL_EXECUTOR, patch_trade, order_id, update.limit_price, update.quantity)
         return res
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

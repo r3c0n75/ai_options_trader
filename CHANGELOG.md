@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-13] - Iron Condor Fixes & Order Management
+
+### Fixed
+- **Iron Condor Strategy Detection**:
+    - **Backend (`main.py`)**: Enhanced `_map_alpaca_order_to_trade_response` to correctly identify 4-leg orders as "Iron Condor" and 2-leg orders as named spreads (e.g. "Put Spread Sell") instead of the generic "Spread Sell".
+    - **Frontend (`App.tsx`)**: Fixed a bracket nesting error in `groupOpenTrades` that caused the Iron Condor detection block (`opts.length === 4`) to be unreachable. Now correctly groups 4-leg positions (2 puts + 2 calls, mixed sides) as "Iron Condor".
+    - **Status Mapping**: Ensured Alpaca's `NEW` and `ACCEPTED` internal order statuses are correctly mapped to `PENDING` in the UI.
+
+- **Trade Modal Expiration Selection**:
+    - **Date Normalization**: Added a `normalizeDate` utility in `TradeConfirmationModal.tsx` that converts OCC-format expiration dates (`YYMMDD`, e.g. `260417`) to standard `YYYY-MM-DD` before horizon comparison.
+    - **Tab Defaulting Fix**: The modal now correctly selects the "Monthly" or "Weekly" tab for existing orders instead of defaulting to "LEAPS" (which occurred because `new Date("260417")` evaluated to the far future).
+    - **Selection Highlighting**: Fixed a comparison that prevented the active expiration date button from appearing highlighted when editing a pending order.
+    - **UI Label Clarity**: Relabeled the limit price field from "Net Credit per share" to "Strategy Net Credit" for clearer intent with multi-leg strategies.
+
+- **Pending Multi-Leg Order Updates (Cancel & Re-submit)**:
+    - **Root Cause**: Alpaca's REST API does not support the `PATCH /orders/{id}` (replace) operation for multi-leg (`mleg`) orders in `accepted` status.
+    - **Fix (`main.py`)**: Rewrote `patch_trade` to detect `order_class == "mleg"` orders. For these, the function now: (1) fetches the full existing order to extract its legs, (2) **cancels** the original order, and (3) **re-submits** a new identical order at the updated limit price. Single-leg orders continue to use the Alpaca replace API as before.
+    - **Backend Argument Bug**: Fixed a bug where `patch_trade_api` was passing the entire `TradeUpdate` Pydantic model object to the underlying function instead of unpacking its `limit_price` and `quantity` fields, causing a `TradeUpdate doesn't define __round__ method` error.
+
 ## [2026-03-13] - Performance Optimization & Dashboard Stability
 
 ### Added
