@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2026-03-15] - AI Insight Crash Fix
+
+### Fixed
+- **Blank Screen Crash**: Resolved a critical React crash when accessing "AI Insight" for a symbol for the first time.
+- **Backend Consistency**: Updated `/analysis/{symbol}` to return a full data structure (with placeholders) during the "processing" state, matching the frontend's interface expectations.
+- **Frontend Robustness**: Added defensive null-checks and optional chaining in `SymbolAnalysis.tsx` for price, change percentage, and AI verdict strings.
+
 ## [2026-03-13] - Debug HUD & AI Model Attribution
 
 ### Added

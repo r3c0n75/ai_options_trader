@@ -230,7 +230,22 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
         if age < _VIBE_TTL_SECONDS:
             if cache_data == "FETCHING":
                 if age < 30:
-                    return {"vibe": {"sentiment": "Neutral", "global_thesis": "Analysis in progress...", "description": "Market pulse is being synthesized. Refresh in a few seconds."}, "status": "processing"}
+                    return {
+                        "symbol": symbol,
+                        "price": 0,
+                        "change_pct": 0,
+                        "vibe": {
+                            "verdict": "Neutral",
+                            "thesis": "Analysis in progress...",
+                            "suggested_play": "Market pulse is being synthesized. Refresh in a few seconds.",
+                            "model": "Processing..."
+                        },
+                        "news": [],
+                        "greeks": {
+                            "iv": 0, "iv_percentile": 0, "delta_skew": "N/A", "theta": 0, "gamma": 0, "vega": 0, "delta": 0
+                        },
+                        "status": "processing"
+                    }
             else:
                 log_cache(hit=True)
                 return cache_data

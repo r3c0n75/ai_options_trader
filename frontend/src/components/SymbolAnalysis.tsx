@@ -63,6 +63,7 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
   }, [symbol]);
 
   const getSentimentClasses = (verdict: string) => {
+    if (!verdict) return { border: 'animate-border-neutral', text: 'text-purple-400', bg: 'from-purple-600/10' };
     const v = verdict.toLowerCase();
     if (v.includes('bullish') || v.includes('buy') || v.includes('positive')) {
       return {
@@ -86,7 +87,7 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
     };
   };
 
-  const sentiment = data ? getSentimentClasses(data.vibe.verdict) : { border: 'animate-border-neutral', text: 'text-purple-400', bg: 'from-purple-600/10' };
+  const sentiment = (data && data.vibe && data.vibe.verdict) ? getSentimentClasses(data.vibe.verdict) : { border: 'animate-border-neutral', text: 'text-purple-400', bg: 'from-purple-600/10' };
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-8 backdrop-blur-md bg-black/80 animate-in fade-in duration-300">
@@ -109,8 +110,8 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
               <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                 {symbol} Analysis
                 {data && (
-                  <span className={`text-sm font-mono px-2 py-1 rounded-lg ${data.change_pct >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                    ${data.price.toFixed(2)} ({data.change_pct >= 0 ? '+' : ''}{data.change_pct}%)
+                  <span className={`text-sm font-mono px-2 py-1 rounded-lg ${(data.change_pct || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                    ${(data.price || 0).toFixed(2)} ({(data.change_pct || 0) >= 0 ? '+' : ''}{data.change_pct || 0}%)
                   </span>
                 )}
               </h2>

@@ -74,6 +74,7 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Visual Continuity**: The "AI Insight" badge is mirrored inside the Symbol Analysis modal for a cohesive premium experience.
     - **Sentiment-Driven UI**: The "AI Pulse" card dynamically changes its color scheme and animating pulse (Bullish: Green, Bearish: Red, Neutral: Purple) based on AI verdict strings.
     * **Scroll Lock Utility**: Automatically prevents background page scrolling when the Modal is open to maintain focus and UI cleanliness.
+    * **AI Insight Stability**: Standardized the "processing" state return structure in the backend to ensure frontend rendering continuity. Added multi-level defensive guards and optional chaining in `SymbolAnalysis.tsx` to prevent React "black screen" crashes during asynchronous data transitions.
 * **Strategy Payoff Diagrams**: 
     * **High-Precision Mapping**: Resolved mouse-cursor drift by mapping screen coordinates to the SVG's internal coordinate space.
     * **Smart Auto-Scaling**: Frames strikes and premium breakevens dynamically.
