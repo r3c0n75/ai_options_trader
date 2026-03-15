@@ -20,6 +20,7 @@ ENV/
 *.db
 *.sqlite3
 options_trader.db
+backend/data/*.json
 
 # OS generated files
 .DS_Store
