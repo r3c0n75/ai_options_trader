@@ -295,6 +295,8 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                 if s_call_prem > 0:
                     pop = 75 # Standard proxy for 30-delta CC
                     score = 65
+                    # R/R: express as premium yield (income / stock price)
+                    cc_yield_pct = round((s_call_prem / current_price) * 100, 2)
                     symbol_recs.append({
                         "symbol": symbol, "model": health.get("model", "N/A"),
                         "strategy": "Covered Call",
@@ -304,7 +306,7 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                         "target_entry": f"${s_call_prem:.2f} Credit",
                         "entry_price": s_call_prem,
                         "pop": f"{pop}%",
-                        "risk_reward": "Capped Upside",
+                        "risk_reward": f"{cc_yield_pct}% yield",
                         "confidence": "Moderate",
                         "score": score,
                         "diagram_data": {
@@ -327,6 +329,15 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                 if l_put_prem > 0:
                     pop = 35 # Typical for near-money protection
                     score = 80 if is_risk_off else 50 # High score if we are actually in risk-off
+                    # Dynamic R/R: estimate profit at a 2-ATR downside move
+                    price_at_move = current_price - (atr * 2)
+                    intrinsic_at_move = max(0.0, l_put_contract['strike'] - price_at_move)
+                    realistic_profit = intrinsic_at_move - l_put_prem
+                    if realistic_profit > 0:
+                        lp_rr_ratio = round(realistic_profit / l_put_prem, 1)
+                        lp_rr_str = f"{lp_rr_ratio}:1"
+                    else:
+                        lp_rr_str = "< 1:1 (deep ATM)"  # Put is too expensive relative to 2-ATR move
                     symbol_recs.append({
                         "symbol": symbol, "model": health.get("model", "N/A"),
                         "strategy": "Long Put / Hedge",
@@ -335,8 +346,8 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
                         "expiration": expiration,
                         "target_entry": f"${l_put_prem:.2f} Debit",
                         "entry_price": l_put_prem,
-                        "pop": f"{pop}%", 
-                        "risk_reward": "5:1",
+                        "pop": f"{pop}%",
+                        "risk_reward": lp_rr_str,
                         "confidence": "High",
                         "score": score,
                         "diagram_data": {

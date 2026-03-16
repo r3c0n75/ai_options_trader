@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2026-03-15] - Dynamic Risk/Reward Formulas
+
+### Changed
+- **Long Put / Hedge — Dynamic R/R Calculation** (`engine.py`):
+    - Replaced the hardcoded `"5:1"` value with a live calculation grounded in a **2-ATR downside scenario**.
+    - Formula: `realistic_profit = intrinsic_at_2ATR_move - premium_paid`, then `rr_ratio = round(realistic_profit / premium, 1)`.
+    - Graceful fallback: if the 2-ATR move does not cover the premium paid (put is deep ATM / expensive), the R/R displays as `"< 1:1 (deep ATM)"` to warn the user.
+- **Covered Call — Premium Yield Display** (`engine.py`):
+    - Replaced the non-numeric `"Capped Upside"` label with a quantified **premium yield percentage**: `(premium / stock_price) × 100`, displayed as e.g. `"1.24% yield"`.
+    - Makes income strategies directly comparable to spread strategies in the Recommendations panel.
+- **Stale Recommendations Cache Cleared**:
+    - `recs_cache.json` was deleted to ensure all subsequent scans use the new formulas immediately.
+
 ## [2026-03-15] - Institutional Polish & AI Insight Tailoring
 
 ### Added

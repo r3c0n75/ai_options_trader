@@ -42,6 +42,10 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
     - **Enhanced Sorting & Viewing**: Implemented alphabetical (Symbol) and strategy-based sorting, alongside a new "Show All" toggle to expand the focused Top 5 opportunities list.
     - **API Limit Support**: Backend `generate_recommendations` now supports an optional `limit` parameter for more flexible frontend layouts.
+    - **Dynamic Risk/Reward Formulas** (`engine.py`):
+        - **Long Put / Hedge**: R/R is now calculated live using a **2-ATR downside scenario** — `(intrinsic value at 2-ATR move − premium) / premium`. Fallback label `"< 1:1 (deep ATM)"` is shown if the move doesn't cover the cost. Replaced the former hardcoded `"5:1"`.
+        - **Covered Call**: R/R is now expressed as a **premium yield %** — `(premium / stock_price) × 100` — displayed as e.g. `"1.24% yield"`. Replaced the former non-numeric `"Capped Upside"` label.
+        - **Credit & Debit Spreads / Iron Condor**: Existing formula-based calculations are retained as-is (correct and precise).
 * **Filtering/Sorting System**: Custom logic for numeric sorting of ratios and percentages in recommendations, now extended to include Symbol and Strategy fields. **Portfolio "Top Positions" table** now supports full column sorting across all key metrics.
 * **Macro Scanner (ETFScanner)**:
     - **Asset Sorting**: Integrated Symbol and Change % sorting to allow for quick scanning of top-performing or specific assets.
