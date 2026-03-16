@@ -23,6 +23,16 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     * **Advanced Retry Logic**: Backend features localized "daily quota" detection and exponential backoff for `429` errors.
     * **Multi-model Selection**: User-facing dropdown for pivoting between Flash and Pro generations.
     * **Model Attribution**: Every AI response (Chat, Insight, Pulse) now includes a specific model identifier (e.g., `gemini-1.5-flash`), synchronized between backend retry logic and frontend UI badges.
+* **VIX Market Pulse (Inline Suite)**:
+    - **Seamless Integration**: Refactored the previous modal implementation into an inline dashboard component that expands between the top cards and recommendations.
+    - **Mutual Exclusivity Logic**: Implemented state management in `App.tsx` to handle "Exclusive Display" — opening VIX analysis automatically closes any active asset chart, and vice-versa, maintaining a clean dashboard layout.
+    - **Interactive Analysis**: The VIX Level in the Market Health card is now a hover-enhanced trigger for the expanded suite.
+    - **Refined UI**: Removed redundant top close buttons in favor of a single consistent "Close Analysis" footer button.
+    - **AI Model Badge**: Integrated AI model attribution (e.g., Gemini-Flash-Latest) into the Macro Thesis view to match project-wide standards.
+* **TradingView Charting Fixes**:
+    - **Interval Selection Resilience**: Fixed a critical bug where 1D, 1M, and 12M timeframe buttons were non-functional due to a backend argument mismatch.
+    - **VIX Data Robustness**: Upgraded the `get_stock_bars` logic in `data_fetcher.py` to use `yf.download`, which offers higher reliability in Docker/WSL environments compared to `Ticker().history`.
+    - **Automatic Normalization**: Implemented caret enforcement (`^`) for index symbols in the backend to ensure `yfinance` reliability without requiring specific frontend overrides.
 * **Trade Recommendations (Top Macro Opportunities)**:
     - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
     - **Enhanced Sorting & Viewing**: Implemented alphabetical (Symbol) and strategy-based sorting, alongside a new "Show All" toggle to expand the focused Top 5 opportunities list.
@@ -140,8 +150,11 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 * **OCC Date Format vs Standard Date**: OCC contract symbols embed the expiration date as `YYMMDD` (e.g., `260417`). When using this date string in JavaScript's `new Date()`, it is parsed as the year 26 AD, not 2026, resulting in incorrect horizon calculations. Always normalize by converting `YYMMDD` → `YYYY-MM-DD` using string manipulation before any date arithmetic.
 * **Pydantic Model Pass-Through Bug**: When using `asyncio.run_in_executor` with FastAPI Pydantic models, passing the model object directly (instead of unpacking its fields) will cause runtime errors in functions that expect primitive types. Always unpack: `patch_trade(order_id, update.limit_price, update.quantity)` not `patch_trade(order_id, update)`.
 * **Iron Condor Bracket Nesting**: The strategy detection cascade in JSX/TSX must be carefully bracketed. If the closing brace of a `} else if` chain is misplaced, subsequent branches (like Iron Condor `opts.length === 4`) become unreachable dead code without any compiler warning. Use strict linting and test each detection branch explicitly.
-* **Alpaca Order List Staleness (Optimistic Updates)**: After a successful `DELETE /orders/{id}`, Alpaca's `GET /orders` endpoint may continue returning the order as `PENDING` for a brief period due to eventual consistency. Implementing an **optimistic update** — immediately updating local React state to `CANCELED` upon successful DELETE — eliminates this flicker. A background `fetchData()` can still be called to reconcile with the server without blocking the UI.
 * **Two-Step Destructive Actions**: For irreversible actions like order cancellation, implement an inline two-step confirmation pattern (e.g., click ✕ → "Cancel? [Yes] [No]") rather than a full modal, which is disproportionate UX overhead. Show a loading/in-progress state while the action is being processed.
+* **Alpaca Index Limitations**: Free-tier Alpaca feeds often lack index data (e.g., VIX). Forcing a `yfinance` fallback by checking for index symbols or catching 400 errors is essential.
+* **Backend Parameter Mapping**: When using `asyncio.run_in_executor`, ensure positional arguments match precisely between the API endpoint and the utility function. A single slipped parameter can silently disable features like charting intervals.
+* **yf.download Reliability**: In containerized environments, `yf.download()` often proves more robust and less prone to internal session errors than the `Ticker` object's standard history method.
+* **Mutual Exclusivity in UI**: In high-density dashboards, using mutual exclusivity (closing one expansion when another opens) is superior to stacking or overlapping modals for focus management.
 
 ## Next Steps
 * Implement real-time websocket updates for the macro scanner.

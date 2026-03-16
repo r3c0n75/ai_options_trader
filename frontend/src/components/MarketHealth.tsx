@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Activity, ShieldAlert, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, ShieldAlert, TrendingDown, TrendingUp, Sparkles } from 'lucide-react';
 
 interface MarketHealthData {
   status: string;
   vix_level: number;
   description: string;
+  risk_score: number;
+  market_mood: string;
+  global_thesis: string;
+  model?: string;
 }
 
-export const MarketHealth: React.FC = () => {
+interface MarketHealthProps {
+  onVixClick?: (data: MarketHealthData) => void;
+}
+
+export const MarketHealth: React.FC<MarketHealthProps> = ({ onVixClick }) => {
   const [data, setData] = useState<MarketHealthData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,11 +59,23 @@ export const MarketHealth: React.FC = () => {
           </h2>
           <p className="text-sm text-gray-400 mt-1">VIX Implied Volatility Analysis</p>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-black font-mono">
-            {data.vix_level}
+        <div 
+          onClick={() => onVixClick && data && onVixClick(data)}
+          className="text-right cursor-pointer group/vix relative"
+          title="Click to view VIX Market Pulse"
+        >
+          {/* Subtle glow effect on hover */}
+          <div className="absolute inset-0 -m-2 bg-blue-500/0 group-hover/vix:bg-blue-500/10 rounded-xl transition-all duration-300 blur-md" />
+          
+          <div className="relative">
+            <div className="text-3xl font-black font-mono transition-transform duration-300 group-hover/vix:scale-110 group-hover/vix:text-blue-400">
+              {data.vix_level}
+            </div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-1 flex items-center justify-end gap-1">
+              VIX Level
+              <Sparkles className="w-3 h-3 text-blue-400 opacity-0 group-hover/vix:opacity-100 transition-opacity" />
+            </div>
           </div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">VIX Level</div>
         </div>
       </div>
 

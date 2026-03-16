@@ -32,6 +32,7 @@ import { SymbolAnalysis } from './components/SymbolAnalysis';
 import { TradeConfirmationModal } from './components/TradeConfirmationModal';
 import { DebugHUD } from './components/DebugHUD';
 import { Bug } from 'lucide-react';
+import { VixMarketPulseInline } from './components/VixMarketPulseInline';
 
 interface AIRecommendation {
   action: 'HOLD' | 'CLOSE' | 'ROLL';
@@ -109,6 +110,7 @@ function App() {
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
+  const [vixPulseData, setVixPulseData] = useState<any | null>(null);
 
   const handleRequestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -710,12 +712,34 @@ function App() {
         {activeTab === 'dashboard' && (
           <main className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
             <div className="lg:col-span-1 flex flex-col gap-8">
-              <MarketHealth />
+              <MarketHealth 
+                onVixClick={(data) => {
+                  setVixPulseData(data);
+                  setSelectedSymbol(null); // Mutually exclusive with symbol chart
+                }} 
+              />
             </div>
             
             <div className="lg:col-span-2">
-              <ETFScanner onSelect={(s: string) => setSelectedSymbol(s)} />
+              <ETFScanner onSelect={(s: string) => {
+                setSelectedSymbol(s);
+                setVixPulseData(null); // Mutually exclusive with vix pulse
+              }} />
             </div>
+
+            {vixPulseData && (
+              <div className="lg:col-span-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                <VixMarketPulseInline
+                  onClose={() => setVixPulseData(null)}
+                  vixLevel={vixPulseData.vix_level}
+                  marketMood={vixPulseData.market_mood}
+                  riskScore={vixPulseData.risk_score}
+                  description={vixPulseData.description}
+                  globalThesis={vixPulseData.global_thesis}
+                  model={vixPulseData.model}
+                />
+              </div>
+            )}
 
             {selectedSymbol && (
               <div className="lg:col-span-3 animate-in fade-in slide-in-from-top-4 duration-500">

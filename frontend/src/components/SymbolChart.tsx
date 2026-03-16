@@ -111,17 +111,20 @@ export const SymbolChart = ({ symbol, onClose, onAnalyze, hideHeader }: { symbol
           <div className="flex items-center gap-4">
             <div>
               <h2 className="text-xl font-black text-white flex items-center gap-2">
-                <span className="text-blue-400">{symbol}</span> Historical Data
+                <span className="text-blue-400">{symbol.startsWith('^') ? symbol.substring(1) : symbol}</span> Historical Data
               </h2>
               <div className="flex items-center gap-4 mt-1">
                 <div className="flex bg-black/40 p-1 rounded-lg border border-gray-800">
                   {(['1D', '1M', '3M', '12M'] as const).map(p => (
                     <button
                       key={p}
-                      onClick={() => setPeriod(p)}
-                      className={`px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase transition-all ${period === p ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPeriod(p);
+                      }}
+                      className={`px-3 py-1 rounded text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1 ${period === p ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
                     >
-                      {p === '1D' ? <Clock className="w-3 h-3 inline mr-1" /> : <Calendar className="w-3 h-3 inline mr-1" />}
+                      {p === '1D' ? <Clock className="w-3 h-3" /> : <Calendar className="w-3 h-3" />}
                       {p}
                     </button>
                   ))}

@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -46,20 +47,24 @@ _PRICE_CACHE_TTL = 30 # 30 seconds
 
 def get_vix_level() -> float:
     """Fetches the current or last closing price of the VIX indicator."""
-    # VIX is an index, Alpaca basic data doesn't always cover indices for free, so we keep yfinance for VIX
     try:
-        log_api_call("Yahoo Finance")
-        vix = yf.Ticker("^VIX", session=_YF_SESSION)
-        data = vix.history(period="1d", timeout=5)
-        if data.empty:
-            data = vix.history(period="5d", timeout=5)
+        # VIX always needs the caret for yfinance
+        symbol = "^VIX"
+        log_api_call("Yahoo Finance (Download)")
+        # Use download for better reliability in some environments
+        data = yf.download(symbol, period="5d", interval="1d", progress=False, timeout=10)
         
         if not data.empty:
-            return float(data['Close'].iloc[-1])
-        return 18.0  # Safe default if API completely fails
+            # yfinance returns multi-index columns sometimes with download
+            if isinstance(data.columns, pd.MultiIndex):
+                close_series = data['Close'][symbol]
+            else:
+                close_series = data['Close']
+            return float(close_series.iloc[-1])
+        
+        return 18.0
     except Exception as e:
-        log_error("DATA_FETCHER:get_vix_level", "GET", 500, str(e))
-        print(f"Error fetching VIX: {e}")
+        print(f"Error fetching VIX level: {e}")
         return 18.0
 
 def get_stock_price(symbol: str) -> float:
@@ -329,7 +334,7 @@ def get_macro_etfs(symbols: list = None) -> dict:
         print(f"Error fetching ETF snapshots from Alpaca: {e}")
         return _yfinance_macro_fallback(basket)
 
-def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> list:
+def get_stock_bars(symbol: str, period: str = "3M", timeframe: str = "1Day") -> list:
     """Fetches historical OHLC bar data for a stock symbol."""
     if not ALPACA_API_KEY:
         return _yfinance_bars_fallback(symbol, period)
@@ -386,25 +391,44 @@ def get_stock_bars(symbol: str, timeframe: str = "1Day", period: str = "3M") -> 
 
 def _yfinance_bars_fallback(symbol: str, period: str) -> list:
     try:
-        log_api_call("Yahoo Finance")
-        ticker = yf.Ticker(symbol, session=_YF_SESSION)
+        # Force caret for VIX if missing
+        if "VIX" in symbol.upper() and not symbol.startswith("^"):
+            symbol = "^" + symbol
+            
+        log_api_call(f"Yahoo Finance Fallback ({symbol})")
+        
         interval = "1m" if period == "1D" else "1h" if period == "1M" else "1d"
         yf_period = "1d" if period == "1D" else "1mo" if period == "1M" else "1y" if period == "12M" else "3mo"
         
-        data = ticker.history(period=yf_period, interval=interval)
+        # Use download as it's often more robust than Ticker.history
+        data = yf.download(symbol, period=yf_period, interval=interval, progress=False, timeout=10)
+        
+        if data.empty:
+            print(f"No yfinance data found for {symbol}")
+            return []
+            
         results = []
-        for timestamp, row in data.iterrows():
+        # Handle potential MultiIndex columns from yf.download
+        if isinstance(data.columns, pd.MultiIndex):
+            df = data.swaplevel(0, 1, axis=1)[symbol]
+        else:
+            df = data
+            
+        for timestamp, row in df.iterrows():
+            # Skip rows with NaN
+            if pd.isna(row['Close']):
+                continue
             results.append({
                 "time": timestamp.isoformat(),
                 "open": float(row['Open']),
                 "high": float(row['High']),
                 "low": float(row['Low']),
                 "close": float(row['Close']),
-                "volume": int(row['Volume'])
+                "volume": int(row['Volume']) if 'Volume' in row else 0
             })
         return results
     except Exception as e:
-        print(f"Error fetching bars from yfinance fallback: {e}")
+        print(f"Error fetching bars from yfinance fallback for {symbol}: {e}")
         return []
 
 def _fetch_yf_etf(symbol):

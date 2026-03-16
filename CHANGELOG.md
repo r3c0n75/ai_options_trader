@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2026-03-15] - VIX Market Pulse Integration & Charting Fixes
+
+### Added
+- **Inline VIX Market Pulse** (`VixMarketPulseInline.tsx`):
+    - Refactored the VIX analysis from a modal to a seamless inline component on the main dashboard.
+    - **Mutual Exclusivity**: Dashboard now intelligently manages state to ensure only one expanded analysis (VIX or asset symbol) is active at a time.
+    - **Premium UI**: Integrated glassmorphism, interactive charts, and AI-driven macro thesis with model attribution (e.g., Gemini-Flash-Latest).
+    - **Interactive VIX Level**: Hover-enhanced clickable VIX metric in the "Market Health" card triggers the inline expansion.
+
+### Fixed
+- **Chart Interval Bug**: Resolved a critical backend/frontend parameter mismatch where timeframe selection (1D, 1M, 12M) was ignored by the data engine.
+- **Robust VIX Data Fetching**:
+    - Upgraded `data_fetcher.py` to use `yf.download` for better reliability in Docker/WSL environments.
+    - Implemented automatic symbol normalization (carets) for index data (`^VIX`).
+    - Added error-resilient fallbacks for Alpaca data gaps in free-tier accounts.
+- **AI Model Attribution Consistency**: Standardized the display of AI model names in the VIX Pulse view to match the "AI Deep Research" branding.
+
 ## [2026-03-15] - AI Insight Crash Fix
 
 ### Fixed

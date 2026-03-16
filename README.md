@@ -10,11 +10,12 @@ An intelligent macroeconomic options trading dashboard. It provides a real-time 
 5. **News & Catalysts Feed**: A scrolling timeline of recent financial headlines connected back to the recommended trades.
 6. **High-Fidelity Portfolio Dashboard**: A comprehensive trading hub mirroring the Alpaca web portal. Includes an **Equity History Chart**, live **Account Balances**, and an audit trail of **Recent Orders**.
 7. **Logical Position Grouping**: Automatically bundles disparate legs into coherent strategies (e.g., Covered Calls) with unified P/L, market value, and payoff visualization.
-8. **Interactive Asset Charts**: Integrated **Lightweight Charts™** for high-performance historical data (1D, 1M, 3M) with an immersive **Fullscreen Analysis Mode**.
-9. **Trade Payoff Diagrams**: Interactive SVG-based P&L curves for all recommendations and open portfolio positions. Refined range scaling ensures high-detail views for stock-inclusive strategies like Covered Calls.
-10. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
-11. **Proactive "AI Action" Co-pilot**: Instant **Hold**, **Close**, or **Roll** suggestions for every position, backed by a macro-aware confirmation modal and duration-sensitive health heuristics.
-12. **Analysis Curve © NOW**: Real-time theoretical P/L curve (dashed orange) in strategy payoff diagrams, providing a realistic view of current value vs expiration potential.
+8. **Interactive Asset Charts**: Integrated **Lightweight Charts™** for high-performance historical data with full support for **1D, 1M, 3M, and 12M** timeframes. Fixes ensure consistent data updates across all intervals.
+9. **Refined VIX Market Pulse**: A premium, interactive suite for VIX analysis including interactive charts, risk gauging, and AI-driven macro thesis, refactored for a seamless inline dashboard experience.
+10. **Trade Payoff Diagrams**: Interactive SVG-based P&L curves for all recommendations and open portfolio positions. Refined range scaling ensures high-detail views for stock-inclusive strategies like Covered Calls.
+11. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
+12. **Proactive "AI Action" Co-pilot**: Instant **Hold**, **Close**, or **Roll** suggestions for every position, backed by a macro-aware confirmation modal and duration-sensitive health heuristics.
+13. **Analysis Curve © NOW**: Real-time theoretical P/L curve (dashed orange) in strategy payoff diagrams, providing a realistic view of current value vs expiration potential.
 
 ## Getting Started
 
