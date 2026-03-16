@@ -16,6 +16,7 @@ An intelligent macroeconomic options trading dashboard. It provides a real-time 
 11. **Live Paper Trading**: Execute orders directly through the Alpaca Paper Trading API with real-time position and order sync.
 12. **Proactive "AI Action" Co-pilot**: Instant **Hold**, **Close**, or **Roll** suggestions for every position, backed by a macro-aware confirmation modal and duration-sensitive health heuristics.
 13. **Analysis Curve © NOW**: Real-time theoretical P/L curve (dashed orange) in strategy payoff diagrams, providing a realistic view of current value vs expiration potential.
+14. **Documented Strategy**: Detailed breakdown of AI market regime detection and strategy mapping in [AI_MACRO_STRATEGY.md](./AI_MACRO_STRATEGY.md).
 
 ## Getting Started
 

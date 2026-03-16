@@ -99,7 +99,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
-  const [searchedSymbol, setSearchedSymbol] = useState<string | null>(null);
+  const [searchedSymbol, setSearchedSymbol] = useState<string | { symbol: string, strategy?: string, thesis?: string } | null>(null);
   const [portfolioPeriod, setPortfolioPeriod] = useState<string>('1D');
   const [portfolioHoverData, setPortfolioHoverData] = useState<{ index: number; x: number } | null>(null);
   const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
@@ -1274,7 +1274,9 @@ function App() {
 
       {searchedSymbol && (
         <SymbolAnalysis 
-          symbol={searchedSymbol} 
+          symbol={typeof searchedSymbol === 'string' ? searchedSymbol : searchedSymbol.symbol} 
+          strategy={typeof searchedSymbol === 'string' ? undefined : searchedSymbol.strategy}
+          thesis={typeof searchedSymbol === 'string' ? undefined : searchedSymbol.thesis}
           onClose={() => setSearchedSymbol(null)} 
         />
       )}

@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 
 
+## [2026-03-15] - Institutional Polish & AI Insight Tailoring
+
+### Added
+- **Tailored AI Insights**:
+    - Clicking "AI Insight" on a recommendation now passes the strategy and thesis to Gemini.
+    - Resulting verdict specifically supports or critiques the trade reasoning while preserving generic insights for other areas.
+    - Implemented with backend cache-key partitioning to prevent context mixing.
+- **Institutional Scoring Badge**:
+    - Trade cards now display a yellow Rank/Score badge (e.g., `Rank #1 | Score: 87`).
+    - Surfaces the most professional-grade setups using a composite POP + Risk/Reward metric.
+
+### Fixed
+- **Missing Score Badge**: Resolved a Pydantic model filtering issue in `main.py` that was stripping the `score` field from the API response.
+- **Frontend Context Propagation**: Updated `App.tsx` and `Recommendations.tsx` to handle object-based symbol state, ensuring trade context (strategy/thesis) is correctly dispatched to the analysis modal.
+- **AI Pulse Consistency**: Fixed "Processing..." flicker in the analysis modal by ensuring stable state handling for tailored requests.
+
 ## [2026-03-15] - VIX Market Pulse Integration & Charting Fixes
 
 ### Added

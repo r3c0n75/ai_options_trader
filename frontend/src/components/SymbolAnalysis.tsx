@@ -7,6 +7,8 @@ import { GreeksVisualizer } from './GreeksVisualizer';
 
 interface SymbolAnalysisProps {
   symbol: string;
+  strategy?: string;
+  thesis?: string;
   onClose: () => void;
 }
 
@@ -34,7 +36,7 @@ interface AnalysisData {
   };
 }
 
-export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose }) => {
+export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, strategy, thesis, onClose }) => {
   const [data, setData] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,13 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
     const fetchAnalysis = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/analysis/${symbol}`);
+        let url = `http://localhost:8000/analysis/${symbol}`;
+        const params = new URLSearchParams();
+        if (strategy) params.append('strategy', strategy);
+        if (thesis) params.append('thesis', thesis);
+        if (params.toString()) url += `?${params.toString()}`;
+
+        const res = await fetch(url);
         const json = await res.json();
         setData(json);
       } catch (err) {
@@ -60,7 +68,7 @@ export const SymbolAnalysis: React.FC<SymbolAnalysisProps> = ({ symbol, onClose 
       // Restore scrolling when modal is closed
       document.body.style.overflow = 'unset';
     };
-  }, [symbol]);
+  }, [symbol, strategy, thesis]);
 
   const getSentimentClasses = (verdict: string) => {
     if (!verdict) return { border: 'animate-border-neutral', text: 'text-purple-400', bg: 'from-purple-600/10' };

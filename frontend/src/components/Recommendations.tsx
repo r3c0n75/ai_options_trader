@@ -23,6 +23,8 @@ interface Recommendation {
   risk_reward: string;
   confidence: string;
   entry_price?: number;
+  model: string;
+  score?: number;
   diagram_data: {
     underlying_price: number;
     strategy_type: string;
@@ -31,7 +33,7 @@ interface Recommendation {
 }
 
 interface RecommendationsProps {
-  onAnalyze: (symbol: string) => void;
+  onAnalyze: (rec: any) => void;
   onTradeSuccess?: (symbol: string) => void;
 }
 
@@ -40,7 +42,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
   const [loading, setLoading] = useState(false);
   const [tradeStatus, setTradeStatus] = useState<{message: string, isError: boolean} | null>(null);
   const [filterSide, setFilterSide] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
-  const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence' | 'symbol' | 'strategy'>('none');
+  const [sortBy, setSortBy] = useState<'none' | 'pop' | 'risk' | 'confidence' | 'symbol' | 'strategy' | 'score'>('score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<Recommendation | null>(null);
@@ -71,6 +73,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
       else if (sortBy === 'confidence') comparison = confidenceValue(b.confidence) - confidenceValue(a.confidence);
       else if (sortBy === 'symbol') comparison = a.symbol.localeCompare(b.symbol);
       else if (sortBy === 'strategy') comparison = a.strategy.localeCompare(b.strategy);
+      else if (sortBy === 'score') comparison = (b.score || 0) - (a.score || 0);
       
       return sortOrder === 'desc' ? comparison : -comparison;
     });
@@ -86,9 +89,21 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
       
       const res = await fetch(`http://localhost:8000/recommendations${symbolsParam}`);
       const data = await res.json();
-      setRecs(data);
+      
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        if (data.recommendations) {
+          setRecs(data.recommendations);
+        } else {
+          setRecs([]);
+        }
+      } else if (Array.isArray(data)) {
+        setRecs(data);
+      } else {
+        setRecs([]);
+      }
     } catch (err) {
       console.error(err);
+      setRecs([]);
     } finally {
       setLoading(false);
     }
@@ -203,6 +218,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
               <button onClick={() => setSortBy('pop')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Win Prob (POP)</button>
               <button onClick={() => setSortBy('risk')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Risk/Reward Ratio</button>
               <button onClick={() => setSortBy('confidence')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">AI Confidence</button>
+              <button onClick={() => setSortBy('score')} className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Institutional Score</button>
             </div>
           </div>
         </div>
@@ -265,7 +281,12 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
                        {rec.side}
                      </span>
                      <h3 className="text-xl font-bold text-gray-100">{rec.strategy}</h3>
-                   </div>
+                      {rec.score && (
+                        <div className="flex items-center gap-1.5 ml-auto md:ml-0 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded text-[10px] font-black text-yellow-500 uppercase tracking-tighter">
+                          Rank #{idx + 1} | Score: {Math.round(rec.score)}
+                        </div>
+                      )}
+                    </div>
                    
                    <p className="text-gray-400 text-sm mb-4 leading-relaxed">
                      {rec.thesis}
@@ -290,6 +311,10 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Risk / Reward</div>
                        <div className="font-mono text-sm text-orange-400">{rec.risk_reward}</div>
                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Model</div>
+                        <div className="font-mono text-[10px] text-gray-400 bg-white/5 px-2 py-1 rounded truncate max-w-[100px]" title={rec.model}>{rec.model}</div>
+                      </div>
                      <div>
                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Confidence</div>
                        <div className="font-mono text-sm text-gray-300 flex items-center gap-1">
@@ -303,7 +328,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
                     <button 
                       onClick={(e) => { 
                         e.stopPropagation(); 
-                        onAnalyze(rec.symbol);
+                        onAnalyze(rec);
                       }}
                       className="animate-border-rainbow px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl transition-transform hover:scale-105"
                     >

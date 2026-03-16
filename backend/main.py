@@ -131,7 +131,22 @@ class TradeRecommendation(BaseModel):
     risk_reward: str
     confidence: str
     model: str = "N/A"
+    score: Optional[float] = None
+    entry_price: Optional[float] = None
     diagram_data: StrategyDiagramData
+
+class RiskReportResponse(BaseModel):
+    beta_weighted_delta: float
+    margin_utilization: float
+    total_equity: float
+    pause_new_trades: bool
+    risk_reasons: List[str]
+    timestamp: str
+
+class TopMacroOpportunitiesResponse(BaseModel):
+    market_health: MarketHealthResponse
+    risk_report: RiskReportResponse
+    recommendations: List[TradeRecommendation]
 
 class AccountResponse(BaseModel):
     buying_power: float
@@ -222,10 +237,13 @@ def _load_vibe_cache():
 _load_vibe_cache()
 
 @app.get("/analysis/{symbol}")
-async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
+async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest", strategy: str = None, thesis: str = None):
     now = datetime.datetime.now()
-    if symbol in _SYMBOL_VIBE_CACHE:
-        cache_data, timestamp = _SYMBOL_VIBE_CACHE[symbol]
+    # Cache key should include strategy/thesis to avoid showing generic cache for tailored requests
+    cache_key = f"{symbol}_{strategy}_{thesis}" if (strategy or thesis) else symbol
+    
+    if cache_key in _SYMBOL_VIBE_CACHE:
+        cache_data, timestamp = _SYMBOL_VIBE_CACHE[cache_key]
         age = (now - timestamp).total_seconds()
         if age < _VIBE_TTL_SECONDS:
             if cache_data == "FETCHING":
@@ -252,7 +270,7 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
 
     log_cache(hit=False)
 
-    _SYMBOL_VIBE_CACHE[symbol] = ("FETCHING", now)
+    _SYMBOL_VIBE_CACHE[cache_key] = ("FETCHING", now)
     try:
         from data_fetcher import get_stock_bars, get_financial_news
         bars = get_stock_bars(symbol, period="1D")
@@ -267,7 +285,7 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
         perf_12m = ((latest_price - bars_12m[0]["close"]) / bars_12m[0]["close"] * 100) if bars_12m else 0
         from ai_engine import get_symbol_vibe
         vibe_context = {"price": latest_price, "change_percent": round(change_pct, 2), "trend_3m": round(perf_3m, 2), "trend_12m": round(perf_12m, 2)}
-        vibe = get_symbol_vibe(symbol, vibe_context, headlines, model_name=model)
+        vibe = get_symbol_vibe(symbol, vibe_context, headlines, model_name=model, strategy=strategy, thesis=thesis)
         vibe.update({"trend_3m": vibe_context["trend_3m"], "trend_12m": vibe_context["trend_12m"]})
         from data_fetcher import get_vix_level
         vix = get_vix_level()
@@ -284,7 +302,7 @@ async def analyze_symbol(symbol: str, model: str = "gemini-flash-latest"):
             "delta": 0.52 if change_pct > 0 else 0.48
         }
         result_data = {"symbol": symbol, "price": latest_price, "change_pct": round(change_pct, 2), "vibe": vibe, "news": news, "greeks": greeks}
-        _SYMBOL_VIBE_CACHE[symbol] = (result_data, now)
+        _SYMBOL_VIBE_CACHE[cache_key] = (result_data, now)
         _save_vibe_cache()
         return result_data
     except Exception as e:
@@ -353,7 +371,7 @@ async def get_etf_scanner_data(symbols: str = None):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/recommendations", response_model=List[TradeRecommendation])
+@app.get("/recommendations", response_model=TopMacroOpportunitiesResponse)
 async def get_top_recommendations(symbols: str = None, limit: int = None):
     now = time.time()
     lock_key = f"recommendations_{symbols}_{limit}"

@@ -121,15 +121,20 @@ def _generate_with_retry(model, prompt, max_retries=2):
 
     raise Exception(f"AI exhaustion. Last error: {last_error}")
 
-def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_name: str = None) -> dict:
+def get_symbol_vibe(symbol: str, price_data: dict, news_headlines: str, model_name: str = None, strategy: str = None, thesis: str = None) -> dict:
     """Uses Gemini to synthesize market data into a concise 'Pulse'."""
     model = _get_model(model_name)
     if not model:
         return {"verdict": "Neutral", "thesis": "API key missing.", "suggested_play": "Hold"}
 
+    context_str = ""
+    if strategy and thesis:
+        context_str = f"\nNote: This analysis is specifically for a suggested '{strategy}' strategy with this trade thesis: '{thesis}'. Ensure the verdict and consensus either supports this or provides a professional counter-perspective if the data strongly suggests otherwise."
+
     prompt = f"""Macro Analysis for {symbol}:
 Price Info: {price_data}
 Recent News: {news_headlines}
+{context_str}
 
 Task: Synthesize the current price trend (Short vs long term) and news into a professional trading 'vibe'.
 Return ONLY valid JSON with keys: verdict, thesis (2 sentences explaining the trend/news blend), suggested_play."""
@@ -211,19 +216,52 @@ def get_research_response(symbol: str, question: str, context: str, model_name: 
         log_error("AI_ENGINE:get_research_response", "GET", 500, str(e))
         return f"Research Error: Quota Limit Reached. (Current key tier is likely FREE). Error: {str(e)[:50]}"
 
-def get_macro_sentiment(news_headlines: str, vix: float, model_name: str = None) -> dict:
+def get_macro_sentiment(news_headlines: str, vix: float, model_name: str = None, macro_data: dict = None) -> dict:
     """Synthesizes news and VIX into a market risk score and mood."""
     model = _get_model(model_name)
     if not model:
         return {"risk_score": 50, "market_mood": "Neutral", "global_thesis": "AI sentiment unavailable."}
 
-    prompt = f"""Macro Sentiment Analysis:
-VIX Level: {vix}
-Headlines: {news_headlines}
+    # Build the enhanced institutional prompt
+    macro_context = ""
+    if macro_data:
+        vts = macro_data.get('vix_term_structure', {})
+        ind = macro_data.get('indicators', {})
+        as_of = ind.get('as_of_date', 'N/A')
+        
+        macro_context = f"""
+Macro Context Metrics:
+- VIX: {vix} (Real-time)
+- VIX Term Structure: {vts.get('vix9d')} (9d) / {vix} (30d) / {vts.get('vix3m')} (3m)
+- Curve Status: {vts.get('curve', 'Unknown')}
+- VRP (IV-RV): {macro_data.get('vrp')}
+- Bond Vol (MOVE): {ind.get('move_index')} (as of {as_of} — T-1 Data)
+- HY Spread: {ind.get('hy_spread')}% (as of {as_of} — T-1 Data)
+- Dollar (DXY Proxy): {ind.get('dxy')}
+- Economic Calendar Today: {macro_data.get('economic_calendar', [])}
 
-Task: Determine the global market 'mood' and a risk score (0-100, where 100 is extreme fear/war).
-Consider geopolitical risk, inflation, and volatility.
-Return ONLY valid JSON with keys: risk_score (int), market_mood (Risk-On, Risk-Off, Defensive), global_thesis (1 concise sentence)."""
+Note: MOVE and HY Spread data is EOD T-1. VIX is real-time. Synthesize accordingly.
+"""
+
+    prompt = f"""Institutional Macro Sentiment Analysis:
+{macro_context}
+Current Headlines: {news_headlines}
+
+Task: Determine the global market 'mood' and a risk score (0-100).
+Consider geopolitical risk, inflation, credit stress, and volatility term structure.
+
+Calibration Benchmarks (Anchored Scoring):
+- Score 15: VIX 13, Fed cuts rates, unemployment 3.5%, contango.
+- Score 45: VIX 20, mixed earnings, CPI in-line.
+- Score 75: VIX 28, regional bank stress, backwardation.
+- Score 95: VIX 40+, sovereign crisis, MOVE > 150.
+
+Return ONLY valid JSON with keys: 
+- risk_score (int)
+- market_mood (Risk-On, Risk-Off, Defensive)
+- global_thesis (1 concise sentence explaining the blend of news and macro metrics)
+"""
+
 
     try:
         response, actual_model = _generate_with_retry(model, prompt)

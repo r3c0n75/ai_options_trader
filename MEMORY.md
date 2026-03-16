@@ -9,6 +9,8 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
 *   **Infrastructure:** Docker Compose (separated `frontend` and `backend` containers).
 
 ## Current State
+* **AI Macro Strategy**: 
+    - **Methodology Documentation**: Created a formal `AI_MACRO_STRATEGY.md` in the project root. This document codifies the "Two-Stage Synthesis" process, market regime definitions (Buyer's/Seller's/Cash), and specific strategy-to-volatility mappings used by the engine.
 * **Visual Branding & UX**:
     - **Custom Favicon**: Implemented a bespoke "AI Pulse" browser tab icon with high-fidelity gradients (#3b82f6 to #34d399) and a semantic heartbeat motif, enhancing the premium feel.
     - **Asset Architecture**: Created `frontend/public` for static assets and updated `index.html` for proper SVG favicon resolution.
@@ -34,6 +36,9 @@ Provide an intelligent, top-down macroeconomic options trading dashboard. It fea
     - **VIX Data Robustness**: Upgraded the `get_stock_bars` logic in `data_fetcher.py` to use `yf.download`, which offers higher reliability in Docker/WSL environments compared to `Ticker().history`.
     - **Automatic Normalization**: Implemented caret enforcement (`^`) for index symbols in the backend to ensure `yfinance` reliability without requiring specific frontend overrides.
 * **Trade Recommendations (Top Macro Opportunities)**:
+    - **Institutional Scoring & Ranking**: Implemented a proprietary composite weighing system (POP + Risk/Reward) to surface professional-grade setups.
+    - **Rank/Score Badging**: Visualized the engine's prioritization using yellow "Rank #X | Score: XX" badges on trade cards.
+    - **Tailored AI Insights**: "AI Insight" buttons on recommendations now pass strategy/thesis context to Gemini, generating context-aware verdicts that support or critique specific trade reasoning.
     - **Dynamic Symbol Evaluation**: Backend seamlessly handles custom symbol lists, enabling real-time analysis for both default core assets and user-added tickers.
     - **Enhanced Sorting & Viewing**: Implemented alphabetical (Symbol) and strategy-based sorting, alongside a new "Show All" toggle to expand the focused Top 5 opportunities list.
     - **API Limit Support**: Backend `generate_recommendations` now supports an optional `limit` parameter for more flexible frontend layouts.

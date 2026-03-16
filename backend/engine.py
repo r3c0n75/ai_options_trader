@@ -103,16 +103,18 @@ def evaluate_market_health() -> dict:
     _LAST_HEALTH_FETCH = now
     _MARKET_HEALTH_CACHE = "FETCHING"
 
-    from data_fetcher import get_vix_level, get_financial_news
+    from data_fetcher import get_macro_regime_data, get_financial_news
     from ai_engine import get_macro_sentiment
     
     try:
         print("DEBUG: Fetching FRESH Market Health from AI...")
-        vix = get_vix_level()
+        macro_regime = get_macro_regime_data()
+        vix = macro_regime["vix_term_structure"]["vix"]
         news = get_financial_news(limit=5)
         news_headlines = " | ".join([n['headline'] for n in news]) if news else "No major catalysts detected."
         
-        sentiment = get_macro_sentiment(news_headlines, vix)
+        # Pass the full macro dict to the AI for synthesis
+        sentiment = get_macro_sentiment(news_headlines, vix, macro_data=macro_regime)
         risk_score = sentiment.get("risk_score", 50)
         mood = sentiment.get("market_mood", "Neutral")
         global_thesis = sentiment.get("global_thesis", "Evaluating macro catalysts.")
@@ -147,7 +149,8 @@ def evaluate_market_health() -> dict:
         "risk_score": risk_score,
         "market_mood": mood,
         "global_thesis": global_thesis,
-        "model": sentiment.get("model", "N/A") if 'sentiment' in locals() else "Fallback"
+        "model": sentiment.get("model", "N/A") if 'sentiment' in locals() else "Fallback",
+        "macro_metrics": macro_regime if 'macro_regime' in locals() else None
     }
     
     # Update cache
@@ -168,21 +171,23 @@ def _get_contract(opts, target):
     if not opts: return None
     return min(opts, key=lambda x: abs(x['strike'] - target))
 
-def _get_lower_contract(opts, than_strike):
-    lower = [p for p in opts if p['strike'] < than_strike]
+def _get_lower_contract(opts, than_strike, width=5):
+    lower = [p for p in opts if p['strike'] <= than_strike - width]
     if lower:
-        # Pick the second closest strike to ensure wider wings
+        # Pick the closest strike that is at least 'width' away
         sorted_lower = sorted(lower, key=lambda x: x['strike'], reverse=True)
-        return sorted_lower[min(len(sorted_lower)-1, 1)] 
-    return None
+        return sorted_lower[0]
+    # Fallback to absolute closest if nothing meets width
+    return min(opts, key=lambda x: abs(x['strike'] - (than_strike - width))) if opts else None
 
-def _get_higher_contract(opts, than_strike):
-    higher = [c for c in opts if c['strike'] > than_strike]
+def _get_higher_contract(opts, than_strike, width=5):
+    higher = [c for c in opts if c['strike'] >= than_strike + width]
     if higher:
-        # Pick the second closest strike to ensure wider wings
+        # Pick the closest strike that is at least 'width' away
         sorted_higher = sorted(higher, key=lambda x: x['strike'])
-        return sorted_higher[min(len(sorted_higher)-1, 1)]
-    return None
+        return sorted_higher[0]
+    # Fallback to absolute closest if nothing meets width
+    return min(opts, key=lambda x: abs(x['strike'] - (than_strike + width))) if opts else None
 
 def _get_mid(contract):
     if not contract: return 0.0
@@ -192,8 +197,10 @@ def _get_mid(contract):
         return round((bid + ask) / 2, 2)
     return contract.get('last', 0)
 
+SAFE_HAVENS = {"GLD", "TMF", "BND", "TLT", "SLV", "SHY"}
+
 def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
-    """Worker function for parallel recommendation scanning."""
+    """Worker function for parallel recommendation scanning with institutional logic."""
     try:
         chain = get_options_chain(symbol)
         if not chain:
@@ -207,226 +214,261 @@ def _analyze_symbol_worker(symbol, risk_score, mood, global_thesis, health):
         if not calls or not puts:
             return []
             
+        from data_fetcher import get_atr
+        atr = get_atr(symbol)
+        if atr <= 0: atr = current_price * 0.02 # Fallback
+        
+        spread_width = max(5.0, round(atr * 1.5, 0))
+        
         symbol_recs = []
         is_high_risk = risk_score > 70
         is_risk_off = mood == "Risk-Off"
+        is_safe_haven = symbol.upper() in SAFE_HAVENS
+        
+        # Macro Regime Data
+        macro = health.get("macro_metrics", {})
+        vrp = macro.get("vrp", 0.0)
+        curve = macro.get("vix_term_structure", {}).get("curve", "contango")
 
-        # High Volatility (Seller's Market)
-        if health["vix_level"] > 25:
-            # Idea 1: Premium collection (Sell)
-            s_put_contract = _get_contract(puts, current_price * 0.95)
-            l_put_contract = _get_lower_contract(puts, s_put_contract['strike'])
-            if l_put_contract:
-                s_put_strike = s_put_contract['strike']
-                l_put_strike = l_put_contract['strike']
-                s_put_prem = _get_mid(s_put_contract)
-                l_put_prem = _get_mid(l_put_contract)
-                
-                if s_put_prem > 0 and l_put_prem > 0:
-                    entry_price = round(s_put_prem - l_put_prem, 2)
-                    conf = "Moderate" if is_high_risk else "High"
-                    symbol_recs.append({
-                        "symbol": symbol, "model": health.get("model", "N/A"),
-                        "strategy": "Put Credit Spread",
-                        "side": "SELL",
-                        "thesis": f"{global_thesis} Selling downside protection on {symbol} despite macro headwinds." if is_high_risk else f"High Implied Volatility crush expected. Selling downside insurance on {symbol}.",
-                        "expiration": expiration,
-                        "target_entry": f"${entry_price:.2f} Credit",
-                        "entry_price": entry_price,
-                        "pop": "78%", 
-                        "risk_reward": "1:3.5",
-                        "confidence": conf,
-                        "diagram_data": {
-                            "underlying_price": current_price,
-                            "strategy_type": "credit_spread",
-                            "legs": [
-                                {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": s_put_prem, "symbol": s_put_contract['contractSymbol']},
-                                {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": l_put_prem, "symbol": l_put_contract['contractSymbol']}
-                            ]
-                        }
-                    })
-                
-            # Idea 2: Strategic Covered Call (Sell)
+        # Logic Swap for Safe Havens during Risk-Off
+        # If it's a safe haven and mood is Risk-Off, we favor Bullish Premium Selling or Long Vega instead of Puts.
+        effective_mood = mood
+        if is_safe_haven and is_risk_off:
+            effective_mood = "Risk-On" # Flip the context for safe havens as they benefit from panic
+            print(f"DEBUG: Safe Haven Logic Flip for {symbol} during {mood}")
+
+        # 1. PREMIUM SELLING (VRP >= 0 AND Contango) or (Safe Haven during Risk-Off)
+        if (vrp >= 0 and curve == "contango") or (is_safe_haven and is_risk_off):
+            # Idea 1: Put Credit Spread (Bullish Premium Harvest)
+            target_strike = current_price * 0.96 # Slight OTM
+            s_put_contract = _get_contract(puts, target_strike)
+            if s_put_contract:
+                l_put_contract = _get_lower_contract(puts, s_put_contract['strike'], width=spread_width)
+                if l_put_contract:
+                    s_put_strike = s_put_contract['strike']
+                    l_put_strike = l_put_contract['strike']
+                    s_put_prem = _get_mid(s_put_contract)
+                    l_put_prem = _get_mid(l_put_contract)
+                    
+                    if s_put_prem > 0:
+                        entry_price = round(s_put_prem - l_put_prem, 2)
+                        max_risk = round(s_put_strike - l_put_strike - entry_price, 2)
+                        
+                        if entry_price > 0 and max_risk > 0:
+                            # Dynamic POP proxy based on distance in ATRs
+                            sigma_dist = (current_price - s_put_strike) / atr
+                            pop = min(95, max(50, int(60 + sigma_dist * 10)))
+                            
+                            rr_ratio = round(max_risk / entry_price, 1)
+                            score = pop + (10 / (rr_ratio + 0.1)) # Favor high POP + decent RR
+
+                            thesis = f"VRP is positive (+{vrp}). " if not is_safe_haven else f"Flight to safety on {symbol}. "
+                            thesis += f"Harvesting premium on {symbol} with {sigma_dist:.1f} ATR buffer."
+
+                            symbol_recs.append({
+                                "symbol": symbol, "model": health.get("model", "N/A"),
+                                "strategy": "Put Credit Spread",
+                                "side": "SELL",
+                                "thesis": thesis,
+                                "expiration": expiration,
+                                "target_entry": f"${entry_price:.2f} Credit",
+                                "entry_price": entry_price,
+                                "pop": f"{pop}%", 
+                                "risk_reward": f"1:{rr_ratio}",
+                                "confidence": "High",
+                                "score": score,
+                                "diagram_data": {
+                                    "underlying_price": current_price,
+                                    "strategy_type": "credit_spread",
+                                    "legs": [
+                                        {"strike": s_put_strike, "side": "SELL", "type": "PUT", "premium": s_put_prem, "symbol": s_put_contract.get('contractSymbol', '')},
+                                        {"strike": l_put_strike, "side": "BUY", "type": "PUT", "premium": l_put_prem, "symbol": l_put_contract.get('contractSymbol', '')}
+                                    ]
+                                }
+                            })
+            
+            # Idea 2: Covered Call (Bullish Income)
             s_call_contract = _get_contract(calls, current_price * 1.05)
-            s_call_prem = _get_mid(s_call_contract)
-            if s_call_prem > 0:
-                conf = "Moderate" if is_high_risk else "High"
-                symbol_recs.append({
-                    "symbol": symbol, "model": health.get("model", "N/A"),
-                    "strategy": "Covered Call",
-                    "side": "SELL",
-                    "thesis": f"Defensive yield generation. {global_thesis} Yielding from expensive calls on {symbol}." if is_high_risk else f"Capitalizing on expensive call premiums while holding {symbol}.",
-                    "expiration": expiration,
-                    "target_entry": f"${s_call_prem:.2f} Credit",
-                    "entry_price": s_call_prem,
-                    "pop": "82%",
-                    "risk_reward": "1:1",
-                    "confidence": conf,
-                    "diagram_data": {
-                        "underlying_price": current_price,
-                        "strategy_type": "covered_call",
-                        "legs": [
-                            {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price, "symbol": symbol},
-                            {"strike": s_call_contract['strike'], "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_contract['contractSymbol']}
-                        ]
-                    }
-                })
-            
-        # Low Volatility (Buyer's Market)
-        elif health["vix_level"] < 17:
-            # Idea 1: Directional Leverage (Buy)
-            l_call_contract = _get_contract(calls, current_price)
-            l_call_prem = _get_mid(l_call_contract)
-            if l_call_prem > 0:
-                symbol_recs.append({
-                    "symbol": symbol, "model": health.get("model", "N/A"),
-                    "strategy": "Long Call / ATM Leap",
-                    "side": "BUY",
-                    "thesis": f"Low cost of leverage. Technical breakout potential for {symbol}.",
-                    "expiration": expiration,
-                    "target_entry": f"${l_call_prem:.2f} Debit",
-                    "entry_price": l_call_prem,
-                    "pop": "45%", 
-                    "risk_reward": "5:1",
-                    "confidence": "Moderate",
-                    "diagram_data": {
-                        "underlying_price": current_price,
-                        "strategy_type": "long_call",
-                        "legs": [
-                            {"strike": l_call_contract['strike'], "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_contract['contractSymbol']}
-                        ]
-                    }
-                })
-            # Idea 2: Bullish Trend (Buy)
-            l_call_atm_contract = _get_contract(calls, current_price)
-            s_call_otm_contract = _get_higher_contract(calls, l_call_atm_contract['strike'])
-            if s_call_otm_contract:
-                l_call_prem = _get_mid(l_call_atm_contract)
-                s_call_prem = _get_mid(s_call_otm_contract)
-                if l_call_prem > 0 and s_call_prem > 0:
-                    entry_price = round(l_call_prem - s_call_prem, 2)
-                    conf = "Low" if is_high_risk else "Moderate"
+            if s_call_contract:
+                s_call_strike = s_call_contract['strike']
+                s_call_prem = _get_mid(s_call_contract)
+                if s_call_prem > 0:
+                    pop = 75 # Standard proxy for 30-delta CC
+                    score = 65
                     symbol_recs.append({
                         "symbol": symbol, "model": health.get("model", "N/A"),
-                        "strategy": "Bull Call Debit Spread",
-                        "side": "BUY",
-                        "thesis": f"Speculative play. {global_thesis} Capped risk on {symbol} recovery." if is_high_risk else f"Cheap premium. Capped risk play on continued macro strength.",
-                        "expiration": expiration,
-                        "target_entry": f"${entry_price:.2f} Debit",
-                        "entry_price": entry_price,
-                        "pop": "55%",
-                        "risk_reward": "2.5:1",
-                        "confidence": conf,
-                        "diagram_data": {
-                            "underlying_price": current_price,
-                            "strategy_type": "debit_spread",
-                            "legs": [
-                                {"strike": l_call_atm_contract['strike'], "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_atm_contract['contractSymbol']},
-                                {"strike": s_call_otm_contract['strike'], "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_otm_contract['contractSymbol']}
-                            ]
-                        }
-                    })
-            
-        # Neutral / Sideways (Cash/Moderate Market)
-        else:
-            # Idea 1: Rangebound Capture (Sell)
-            s_p_contract = _get_contract(puts, current_price * 0.95)
-            l_p_contract = _get_lower_contract(puts, s_p_contract['strike'])
-            s_c_contract = _get_contract(calls, current_price * 1.05)
-            l_c_contract = _get_higher_contract(calls, s_c_contract['strike'])
-            
-            if l_p_contract and l_c_contract:
-                s_p_strike = s_p_contract['strike']
-                l_p_strike = l_p_contract['strike']
-                s_c_strike = s_c_contract['strike']
-                l_c_strike = l_c_contract['strike']
-                s_p_prem = _get_mid(s_p_contract)
-                l_p_prem = _get_mid(l_p_contract)
-                s_c_prem = _get_mid(s_c_contract)
-                l_c_prem = _get_mid(l_c_contract)
-                
-                if s_p_prem > 0 and l_p_prem > 0 and s_c_prem > 0 and l_c_prem > 0:
-                    entry_price = round(s_p_prem + s_c_prem - l_p_prem - l_c_prem, 2)
-                    conf = "High" if (is_high_risk or is_risk_off) else "Moderate"
-                    symbol_recs.append({
-                        "symbol": symbol, "model": health.get("model", "N/A"),
-                        "strategy": "Iron Condor",
+                        "strategy": "Covered Call",
                         "side": "SELL",
-                        "thesis": f"Volatility hedge. {global_thesis} Harvesting theta on {symbol} as markets consolidate." if is_high_risk else f"Macro consolidation. Harvesting theta decay as {symbol} stays rangebound.",
+                        "thesis": f"Stable regime. Yield enhancement on {symbol} at 1.05x spot.",
                         "expiration": expiration,
-                        "target_entry": f"${entry_price:.2f} Credit",
-                        "entry_price": entry_price,
-                        "pop": "65%",
-                        "risk_reward": "1:2.2",
-                        "confidence": conf,
+                        "target_entry": f"${s_call_prem:.2f} Credit",
+                        "entry_price": s_call_prem,
+                        "pop": f"{pop}%",
+                        "risk_reward": "Capped Upside",
+                        "confidence": "Moderate",
+                        "score": score,
                         "diagram_data": {
                             "underlying_price": current_price,
-                            "strategy_type": "iron_condor",
+                            "strategy_type": "covered_call",
                             "legs": [
-                                {"strike": s_p_strike, "side": "SELL", "type": "PUT", "premium": s_p_prem, "symbol": s_p_contract['contractSymbol']},
-                                {"strike": l_p_strike, "side": "BUY", "type": "PUT", "premium": l_p_prem, "symbol": l_p_contract['contractSymbol']},
-                                {"strike": s_c_strike, "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_c_contract['contractSymbol']},
-                                {"strike": l_c_strike, "side": "BUY", "type": "CALL", "premium": l_c_prem, "symbol": l_c_contract['contractSymbol']}
+                                {"strike": current_price, "side": "BUY", "type": "STOCK", "premium": current_price},
+                                {"strike": s_call_strike, "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_contract.get('contractSymbol', '')}
                             ]
                         }
                     })
-                
-            # Idea 2: Earnings / Vol Play (Buy)
-            atm_call_contract = _get_contract(calls, current_price)
-            atm_put_contract = _get_contract(puts, current_price)
-            if atm_call_contract and atm_put_contract:
-                c_prem = _get_mid(atm_call_contract)
-                p_prem = _get_mid(atm_put_contract)
-                if c_prem > 0 and p_prem > 0:
-                    entry_price = round(c_prem + p_prem, 2)
-                    conf = "High" if (is_high_risk or is_risk_off) else "Low"
+
+        # 2. VOLATILITY HEDGING / DIRECTIONAL (Risk-Off or VRP < 0 or High Risk)
+        # However, for Safe Havens, we don't buy puts when mood is Risk-Off.
+        elif (curve == "backwardation" or vrp < 0 or is_high_risk) and not is_safe_haven:
+            # Idea 1: Long Vega / Protective
+            l_put_contract = _get_contract(puts, current_price * 0.98) 
+            if l_put_contract:
+                l_put_prem = _get_mid(l_put_contract)
+                if l_put_prem > 0:
+                    pop = 35 # Typical for near-money protection
+                    score = 80 if is_risk_off else 50 # High score if we are actually in risk-off
                     symbol_recs.append({
                         "symbol": symbol, "model": health.get("model", "N/A"),
-                        "strategy": "Long Straddle/Strangle",
+                        "strategy": "Long Put / Hedge",
                         "side": "BUY",
-                        "thesis": f"Volatility play. {global_thesis} Positioning for explosive expansion in {symbol}." if is_high_risk else f"Buying cheap volatility ahead of potential macro catalyst expansion.",
+                        "thesis": f"Macro risk detected ({curve}). Buying {symbol} convexity to hedge correlated downside.",
                         "expiration": expiration,
-                        "target_entry": f"${entry_price:.2f} Debit",
-                        "entry_price": entry_price,
-                        "pop": "35%",
-                        "risk_reward": "Uncapped",
-                        "confidence": conf,
+                        "target_entry": f"${l_put_prem:.2f} Debit",
+                        "entry_price": l_put_prem,
+                        "pop": f"{pop}%", 
+                        "risk_reward": "5:1",
+                        "confidence": "High",
+                        "score": score,
                         "diagram_data": {
                             "underlying_price": current_price,
-                            "strategy_type": "straddle",
+                            "strategy_type": "long_put",
                             "legs": [
-                                {"strike": atm_call_contract['strike'], "side": "BUY", "type": "CALL", "premium": c_prem, "symbol": atm_call_contract['contractSymbol']},
-                                {"strike": atm_put_contract['strike'], "side": "BUY", "type": "PUT", "premium": p_prem, "symbol": atm_put_contract['contractSymbol']}
+                                {"strike": l_put_contract['strike'], "side": "BUY", "type": "PUT", "premium": l_put_prem, "symbol": l_put_contract.get('contractSymbol', '')}
                             ]
                         }
                     })
+            
+            # Idea 2: Bull Call Debit Spread (Speculative Recovery)
+            l_call_atm_contract = _get_contract(calls, current_price)
+            if l_call_atm_contract:
+                s_call_otm_contract = _get_higher_contract(calls, l_call_atm_contract['strike'], width=spread_width)
+                if s_call_otm_contract:
+                    l_call_prem = _get_mid(l_call_atm_contract)
+                    s_call_prem = _get_mid(s_call_otm_contract)
+                    if l_call_prem > 0 and s_call_prem > 0:
+                        entry_price = round(l_call_prem - s_call_prem, 2)
+                        max_profit = round(s_call_otm_contract['strike'] - l_call_atm_contract['strike'] - entry_price, 2)
+                        if entry_price > 0 and max_profit > 0:
+                            rr_ratio = round(max_profit / entry_price, 1)
+                            pop = 45 # Debit spread proxy
+                            score = 40 + (rr_ratio * 5)
+                            symbol_recs.append({
+                                "symbol": symbol, "model": health.get("model", "N/A"),
+                                "strategy": "Bull Call Debit Spread",
+                                "side": "BUY",
+                                "thesis": f"Counter-trend play. Fixed-risk recovery setup on {symbol} with {rr_ratio}:1 payout.",
+                                "expiration": expiration,
+                                "target_entry": f"${entry_price:.2f} Debit",
+                                "entry_price": entry_price,
+                                "pop": f"{pop}%",
+                                "risk_reward": f"{rr_ratio}:1",
+                                "confidence": "Moderate",
+                                "score": score,
+                                "diagram_data": {
+                                    "underlying_price": current_price,
+                                    "strategy_type": "debit_spread",
+                                    "legs": [
+                                        {"strike": l_call_atm_contract['strike'], "side": "BUY", "type": "CALL", "premium": l_call_prem, "symbol": l_call_atm_contract.get('contractSymbol', '')},
+                                        {"strike": s_call_otm_contract['strike'], "side": "SELL", "type": "CALL", "premium": s_call_prem, "symbol": s_call_otm_contract.get('contractSymbol', '')}
+                                    ]
+                                }
+                            })
+        
+        # 3. Neutral / Sideways FALLBACK
+        else:
+            # Idea: Iron Condor (Consolidation)
+            s_p_contract = _get_contract(puts, current_price * 0.95)
+            s_c_contract = _get_contract(calls, current_price * 1.05)
+            if s_p_contract and s_c_contract:
+                l_p_contract = _get_lower_contract(puts, s_p_contract['strike'])
+                l_c_contract = _get_higher_contract(calls, s_c_contract['strike'])
+                
+                if l_p_contract and l_c_contract:
+                    s_p_strike, l_p_strike = s_p_contract['strike'], l_p_contract['strike']
+                    s_c_strike, l_c_strike = s_c_contract['strike'], l_c_contract['strike']
+                    s_p_prem, l_p_prem = _get_mid(s_p_contract), _get_mid(l_p_contract)
+                    s_c_prem, l_c_prem = _get_mid(s_c_contract), _get_mid(l_c_contract)
+                    
+                    if all(p > 0 for p in [s_p_prem, l_p_prem, s_c_prem, l_c_prem]):
+                        entry_price = round(s_p_prem + s_c_prem - l_p_prem - l_c_prem, 2)
+                        max_risk = round(max(s_p_strike - l_p_strike, l_c_strike - s_c_strike) - entry_price, 2)
+                        if entry_price > 0 and max_risk > 0:
+                            rr_ratio = round(max_risk / entry_price, 1)
+                            pop = 68
+                            score = 70
+                            symbol_recs.append({
+                                "symbol": symbol, "model": health.get("model", "N/A"),
+                                "strategy": "Iron Condor",
+                                "side": "SELL",
+                                "thesis": f"Low volatility expected. Capturing {symbol} theta within +/-5% range.",
+                                "expiration": expiration,
+                                "target_entry": f"${entry_price:.2f} Credit",
+                                "entry_price": entry_price,
+                                "pop": f"{pop}%",
+                                "risk_reward": f"1:{rr_ratio}",
+                                "confidence": "Moderate",
+                                "score": score,
+                                "diagram_data": {
+                                    "underlying_price": current_price,
+                                    "strategy_type": "iron_condor",
+                                    "legs": [
+                                        {"strike": s_p_strike, "side": "SELL", "type": "PUT", "premium": s_p_prem, "symbol": s_p_contract.get('contractSymbol', '')},
+                                        {"strike": l_p_strike, "side": "BUY", "type": "PUT", "premium": l_p_prem, "symbol": l_p_contract.get('contractSymbol', '')},
+                                        {"strike": s_c_strike, "side": "SELL", "type": "CALL", "premium": s_c_prem, "symbol": s_c_contract.get('contractSymbol', '')},
+                                        {"strike": l_c_strike, "side": "BUY", "type": "CALL", "premium": l_c_prem, "symbol": l_c_contract.get('contractSymbol', '')}
+                                    ]
+                                }
+                            })
+        
         return symbol_recs
+        
     except Exception as e:
         print(f"Error analyzing {symbol}: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def generate_recommendations(symbols: list = None, limit: int = None):
     """
-    Generates Top Trade ideas scanning across the provided symbols or MACRO_BASKET in parallel.
+    Orchestrates the recommendation engine.
+    1. Evaluates market health.
+    2. Checks portfolio-level risk.
+    3. Scans symbols for strategies aligned with the regime.
     """
+    from data_fetcher import get_alpaca_account, get_alpaca_positions, MACRO_BASKET
+    from risk_manager import get_portfolio_risk_report
+    
     global _RECS_CACHE, _LAST_RECS_FETCH
     
+    # 1. Macro Regime & Health (FRESH)
+    health = evaluate_market_health()
+    risk_score = health.get("risk_score", 50)
+    mood = health.get("market_mood", "Neutral")
+    global_thesis = health.get("global_thesis", "Evaluating macro catalysts.")
+    
+    # 2. Portfolio Risk Oversight
+    account = get_alpaca_account()
+    positions = get_alpaca_positions()
+    risk_report = get_portfolio_risk_report(positions, account)
+    
+    # 3. Cache Logic
     cache_key = ",".join(sorted(symbols)) if symbols else "default"
     now = datetime.now()
     
-    # Check cache
     if cache_key in _RECS_CACHE and cache_key in _LAST_RECS_FETCH:
         age = (now - _LAST_RECS_FETCH[cache_key]).total_seconds()
         if age < _RECS_TTL_SECONDS:
-            if _RECS_CACHE[cache_key] == "FETCHING":
-                if age < 120: # Allow 120s for parallel scan
-                    stale_key = f"{cache_key}_STALE"
-                    if stale_key in _RECS_CACHE:
-                        print(f"DEBUG: Returning STALE recommendations for {cache_key} while fetching...")
-                        stale_data = _RECS_CACHE[stale_key]
-                        return stale_data if not limit else stale_data[:limit]
-                    return []
-            else:
+            if _RECS_CACHE[cache_key] != "FETCHING":
                 print(f"DEBUG: Returning cached recommendations for {cache_key} (Age: {int(age)}s)")
                 return _RECS_CACHE[cache_key] if not limit else _RECS_CACHE[cache_key][:limit]
 
@@ -434,20 +476,17 @@ def generate_recommendations(symbols: list = None, limit: int = None):
     _LAST_RECS_FETCH[cache_key] = now
     _RECS_CACHE[cache_key] = "FETCHING"
 
-    from data_fetcher import MACRO_BASKET
-    health = evaluate_market_health()
-    risk_score = health.get("risk_score", 50)
-    mood = health.get("market_mood", "Neutral")
-    global_thesis = health.get("global_thesis", "Evaluating macro catalysts.")
-    
+    # 4. Actionable Scan
     symbols_to_evaluate = symbols if symbols else MACRO_BASKET
-    
     combined_recs = []
-    print(f"DEBUG: Starting parallel scan for {len(symbols_to_evaluate)} symbols...")
     
-    # Use global executor
-    futures = [_EXECUTOR.submit(_analyze_symbol_worker, s, risk_score, mood, global_thesis, health) for s in symbols_to_evaluate]
-    for future in futures:
+    if risk_report.get("pause_new_trades"):
+        print(f"DEBUG: RISK CIRCUIT BREAKER ACTIVE: {risk_report['risk_reasons']}")
+        # We skip the scan if the circuit breaker is active to protect capital
+    else:
+        print(f"DEBUG: Starting parallel scan for {len(symbols_to_evaluate)} symbols...")
+        futures = [_EXECUTOR.submit(_analyze_symbol_worker, s, risk_score, mood, global_thesis, health) for s in symbols_to_evaluate]
+        for future in futures:
             try:
                 results = future.result()
                 if results:
@@ -455,19 +494,23 @@ def generate_recommendations(symbols: list = None, limit: int = None):
             except Exception as e:
                 print(f"Worker thread error: {e}")
 
-    # Mix up the recommendations
-    import random
-    random.shuffle(combined_recs)
+    # 5. Scoring & Ranking (Ranked by institutional score)
+    combined_recs.sort(key=lambda x: x.get('score', 0), reverse=True)
+    
+    result = {
+        "market_health": health,
+        "risk_report": risk_report,
+        "recommendations": combined_recs[:limit] if limit else combined_recs
+    }
     
     # Update cache
-    _RECS_CACHE[cache_key] = combined_recs
-    _RECS_CACHE[f"{cache_key}_STALE"] = combined_recs
+    _RECS_CACHE[cache_key] = result
+    _RECS_CACHE[f"{cache_key}_STALE"] = result
+    return result
     _LAST_RECS_FETCH[cache_key] = datetime.now()
     _save_recs_cache()
     
-    if limit:
-        return combined_recs[:limit]
-    return combined_recs
+    return result
 
 def evaluate_position_health(symbol: str, strategy: str, plpc: float, dte: int | None, health: dict) -> dict:
     """
@@ -485,9 +528,10 @@ def evaluate_position_health(symbol: str, strategy: str, plpc: float, dte: int |
     confidence = 85
     
     # Threshold Tuning
-    is_short_dte = dte is not None and dte <= 7
-    is_long_dte = dte is not None and dte > 14
-    is_critical_dte = dte is not None and dte <= 3
+    # Institutional Roll Rule: closed or rolled at 21 DTE
+    is_short_dte = dte is not None and dte <= 21
+    is_long_dte = dte is not None and dte > 45
+    is_critical_dte = dte is not None and dte <= 5
 
     # 1. Critical Danger (Close)
     should_close = False

@@ -25,6 +25,8 @@ interface Recommendation {
     strategy_type: string;
     legs: StrategyLeg[];
   };
+  model: string;
+  score?: number;
   quantity?: number;
   entry_price?: number;
 }
