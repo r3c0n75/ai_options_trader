@@ -496,6 +496,8 @@ def generate_recommendations(symbols: list = None, limit: int = None):
 
     # 5. Scoring & Ranking (Ranked by institutional score)
     combined_recs.sort(key=lambda x: x.get('score', 0), reverse=True)
+    for i, rec in enumerate(combined_recs):
+        rec['rank'] = i + 1
     
     result = {
         "market_health": health,

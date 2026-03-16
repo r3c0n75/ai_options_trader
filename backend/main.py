@@ -132,6 +132,7 @@ class TradeRecommendation(BaseModel):
     confidence: str
     model: str = "N/A"
     score: Optional[float] = None
+    rank: Optional[int] = None
     entry_price: Optional[float] = None
     diagram_data: StrategyDiagramData
 

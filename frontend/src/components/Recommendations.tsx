@@ -25,6 +25,7 @@ interface Recommendation {
   entry_price?: number;
   model: string;
   score?: number;
+  rank?: number;
   diagram_data: {
     underlying_price: number;
     strategy_type: string;
@@ -280,10 +281,10 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ onAnalyze, onT
                        {rec.side === 'BUY' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                        {rec.side}
                      </span>
-                     <h3 className="text-xl font-bold text-gray-100">{rec.strategy}</h3>
-                      {rec.score && (
+                      <h3 className="text-xl font-bold text-gray-100">{rec.strategy}</h3>
+                      {rec.score !== undefined && (
                         <div className="flex items-center gap-1.5 ml-auto md:ml-0 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded text-[10px] font-black text-yellow-500 uppercase tracking-tighter">
-                          Rank #{idx + 1} | Score: {Math.round(rec.score)}
+                          Rank #{rec.rank || idx + 1} | Score: {Math.round(rec.score)}
                         </div>
                       )}
                     </div>
